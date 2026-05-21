@@ -1,5 +1,27 @@
 const categories = ["Vibe Coding", "App Building", "Design", "Automation", "Prompt / Workflow", "Showcase"];
 const statuses = ["집중 중", "질문 가능", "도움 필요", "커피챗 가능", "쉬는 중", "데모 준비 중"];
+const dailySeatLimitSeconds = 5 * 60 * 60;
+const floorPlan = [
+  { floor: "B1", category: "Prompt / Workflow", name: "Help Desk", note: "막힌 지점 상담" },
+  { floor: "1F", category: "Design", name: "Design Studio", note: "UI/UX와 시안 피드백" },
+  { floor: "2F", category: "Vibe Coding", name: "Vibe Coding", note: "앱 제작과 코딩" },
+  { floor: "3F", category: "Automation", name: "Automation Lab", note: "n8n, Make, Zapier" },
+  { floor: "4F", category: "Showcase", name: "Showcase Hall", note: "완성작 전시" }
+];
+const seatPlan = [
+  { id: "A1", name: "창가 집중석", x: 58, y: 96 },
+  { id: "A2", name: "조용한 구석석", x: 190, y: 96 },
+  { id: "A3", name: "도움 데스크 근처", x: 58, y: 246 },
+  { id: "A4", name: "디자인 피드백석", x: 190, y: 246 },
+  { id: "B1", name: "중앙 빌드석", x: 380, y: 132 },
+  { id: "B2", name: "커피챗 근처", x: 512, y: 132 },
+  { id: "B3", name: "몰입 코너석", x: 380, y: 282 },
+  { id: "B4", name: "라운지 근처석", x: 512, y: 282 },
+  { id: "C1", name: "상담 데스크석", x: 58, y: 358 },
+  { id: "C2", name: "빠른 질문석", x: 190, y: 358 },
+  { id: "C3", name: "멘토 대기석", x: 380, y: 358 },
+  { id: "C4", name: "조용한 예약석", x: 512, y: 358 }
+];
 const toolOptions = [
   "Claude",
   "Claude Code",
@@ -36,6 +58,9 @@ const authClient = authReady ? window.supabase.createClient(authConfig.supabaseU
 let currentUser = null;
 let remoteReady = false;
 let realtimeChannel = null;
+let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "A1";
+let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
+let usageTimer = null;
 
 const seedState = {
   profile: {
@@ -194,6 +219,56 @@ function saveActiveRoom() {
   localStorage.setItem(`${storageKey}-active-room`, state.activeRoomId);
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function usageKey() {
+  return `ai-builder-usage-${todayKey()}`;
+}
+
+function getUsageSeconds() {
+  return Number(localStorage.getItem(usageKey()) || 0);
+}
+
+function setUsageSeconds(seconds) {
+  localStorage.setItem(usageKey(), String(Math.min(seconds, dailySeatLimitSeconds)));
+}
+
+function formatDuration(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}시간 ${String(minutes).padStart(2, "0")}분`;
+}
+
+function hasSeatTimeLeft() {
+  return getUsageSeconds() < dailySeatLimitSeconds;
+}
+
+function selectedSeatButton() {
+  return document.querySelector(`[data-seat-id="${selectedSeatId}"]`);
+}
+
+function selectedSeatIsEmpty() {
+  return selectedSeatButton()?.dataset.builderName === "빈 자리";
+}
+
+function selectedSeatIsMine() {
+  return selectedSeatButton()?.dataset.builderId === (currentUser?.id || "me");
+}
+
+function startUsageTimer() {
+  clearInterval(usageTimer);
+  usageTimer = setInterval(() => {
+    if (!currentUser || !isSeatCheckedIn || !hasSeatTimeLeft()) {
+      renderUsagePass();
+      return;
+    }
+    setUsageSeconds(getUsageSeconds() + 60);
+    renderUsagePass();
+  }, 60000);
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -222,6 +297,7 @@ function showApp() {
   byId("authScreen").classList.add("is-hidden");
   byId("appShell").classList.remove("is-hidden");
   byId("resetDemo").classList.toggle("is-hidden", remoteReady);
+  startUsageTimer();
 }
 
 function syncOAuthButtons() {
@@ -694,31 +770,67 @@ function renderRooms() {
   byId("activeRoomLimit").textContent = active.limit;
 }
 
-function renderBuilders() {
-  const room = activeRoom();
-  const builders = roomBuilders(room.id);
-  const seats = [...builders];
-  while (seats.length < room.limit) seats.push(null);
-
-  byId("builderGrid").innerHTML = seats
-    .map((builder) => {
-      if (!builder) {
-        return `<div class="builder-card empty-seat">빈 자리</div>`;
-      }
+function renderFloors() {
+  const active = activeRoom();
+  byId("floorGrid").innerHTML = floorPlan
+    .map((floor) => {
+      const room = state.rooms.find((item) => item.category === floor.category);
+      const isActive = active?.category === floor.category;
+      const viewTarget = floor.category === "Showcase" ? "showcase" : "";
       return `
-        <article class="builder-card">
-          <div class="builder-avatar">
-            <div class="avatar-dot">${escapeHtml(initials(builder.name))}</div>
-            <div class="builder-name">${escapeHtml(builder.name)}</div>
-          </div>
-          <span class="status-pill">${escapeHtml(builder.status)}</span>
-          <p>${escapeHtml(builder.goal)}</p>
-          <p>${escapeHtml(builder.category)}</p>
-          <div class="tools">${escapeHtml(builder.tools)}</div>
-        </article>
+        <button class="floor-card ${isActive ? "active" : ""}" data-floor-room-id="${escapeHtml(room?.id || "")}" data-floor-view="${escapeHtml(viewTarget)}" ${room || viewTarget ? "" : "disabled"}>
+          <strong>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)}</strong>
+          <span>${escapeHtml(floor.note)}</span>
+        </button>
       `;
     })
     .join("");
+}
+
+function renderBuilders() {
+  const room = activeRoom();
+  const builders = roomBuilders(room.id);
+  const occupants = new Map();
+  seatPlan.slice(0, room.limit).forEach((seat, index) => {
+    occupants.set(seat.id, builders[index] || null);
+  });
+
+  byId("builderGrid").innerHTML = `
+    <div class="cafe-room">
+      <div class="cafe-prop prop-window"></div>
+      <div class="cafe-prop prop-help"></div>
+      <div class="cafe-prop prop-cafe"></div>
+      ${seatPlan
+        .slice(0, room.limit)
+        .map((seat) => {
+          const builder = occupants.get(seat.id);
+          const selected = seat.id === selectedSeatId;
+          const empty = !builder;
+          const statusIcon = builder?.status === "도움 필요" ? "!" : builder?.status === "커피챗 가능" ? "☕" : builder ? "◐" : "";
+          const statusClass = builder?.status === "도움 필요" ? "help" : builder?.status === "커피챗 가능" ? "coffee" : builder ? "focus" : "empty";
+      return `
+        <button class="seat-button ${statusClass} ${empty ? "empty" : ""} ${selected ? "selected" : ""}"
+          style="left:${seat.x}px; top:${seat.y}px"
+          data-seat-id="${escapeHtml(seat.id)}"
+          data-seat-name="${escapeHtml(seat.name)}"
+          data-builder-id="${escapeHtml(builder?.id || "")}"
+          data-builder-name="${escapeHtml(builder?.name || "빈 자리")}"
+          data-builder-goal="${escapeHtml(builder?.goal || "이 좌석을 선택해 오늘의 작업을 시작하세요.")}"
+          data-builder-tools="${escapeHtml(builder?.tools || "-")}"
+          data-builder-status="${escapeHtml(builder?.status || "사용 가능")}">
+          <span class="seat-label">${escapeHtml(seat.id)}</span>
+          <span class="seat-desk">
+            <span class="seat-laptop"></span>
+            <span class="seat-avatar"></span>
+            <span class="seat-status">${escapeHtml(statusIcon)}</span>
+          </span>
+        </button>
+      `;
+        })
+        .join("")}
+    </div>
+  `;
+  renderSelectedSeat();
 }
 
 function renderHelp() {
@@ -846,6 +958,35 @@ function renderMetrics() {
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
 }
 
+function renderUsagePass() {
+  const used = getUsageSeconds();
+  const percent = Math.min(100, Math.round((used / dailySeatLimitSeconds) * 100));
+  const today = new Date();
+  byId("passDate").textContent = today.toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" });
+  byId("passGoal").textContent = state.profile.goal || "오늘의 목표를 입력하고 좌석을 선택하세요.";
+  byId("usageToday").textContent = `${formatDuration(used)} / 5시간`;
+  byId("usageBarFill").style.width = `${percent}%`;
+  byId("usageNote").textContent = hasSeatTimeLeft()
+    ? isSeatCheckedIn
+      ? "좌석 이용 중입니다. 1분 단위로 시간이 기록됩니다."
+      : "좌석에 앉으면 이용 시간이 기록됩니다."
+    : "오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.";
+}
+
+function renderSelectedSeat() {
+  const seat = seatPlan.find((item) => item.id === selectedSeatId) || seatPlan[0];
+  const selectedButton = document.querySelector(`[data-seat-id="${seat.id}"]`);
+  const occupiedName = selectedButton?.dataset.builderName || "빈 자리";
+  const status = selectedButton?.dataset.builderStatus || "사용 가능";
+  byId("selectedSeatTitle").textContent = `${seat.id} · ${seat.name}`;
+  byId("selectedSeatCopy").textContent =
+    occupiedName === "빈 자리"
+      ? "사용 가능한 좌석입니다. 오늘의 작업권으로 입장할 수 있습니다."
+      : `${occupiedName} · ${status} · ${selectedButton?.dataset.builderGoal || ""}`;
+  byId("sitSeatButton").textContent = selectedSeatIsMine() ? "내 좌석 입장" : occupiedName === "빈 자리" ? "이 자리에 앉기" : "좌석 정보 보기";
+  byId("sitSeatButton").disabled = !hasSeatTimeLeft() || (occupiedName !== "빈 자리" && !selectedSeatIsMine());
+}
+
 function renderLevel() {
   const stats = calculateBuilderXp();
   const level = levelFromXp(stats.xp);
@@ -861,6 +1002,8 @@ function renderLevel() {
 
 function renderAll(options = {}) {
   syncProfileInputs(Boolean(options.forceProfileSync));
+  renderUsagePass();
+  renderFloors();
   renderRooms();
   renderBuilders();
   renderHelp();
@@ -945,6 +1088,36 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const floorButton = event.target.closest("[data-floor-room-id]");
+  if (floorButton?.dataset.floorView) {
+    document.querySelector(`[data-view="${floorButton.dataset.floorView}"]`)?.click();
+    return;
+  }
+  if (floorButton && floorButton.dataset.floorRoomId) {
+    state.activeRoomId = floorButton.dataset.floorRoomId;
+    saveActiveRoom();
+    if (remoteReady) {
+      joinRoom(state.activeRoomId)
+        .then(refreshRemote)
+        .catch((error) => alert(error.message));
+    } else {
+      updateMyBuilder();
+      saveState();
+      renderAll();
+    }
+    return;
+  }
+
+  const seatButton = event.target.closest("[data-seat-id]");
+  if (seatButton) {
+    selectedSeatId = seatButton.dataset.seatId;
+    localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
+    document.querySelectorAll(".seat-button").forEach((item) => item.classList.remove("selected"));
+    seatButton.classList.add("selected");
+    renderSelectedSeat();
+    return;
+  }
+
   const helpAction = event.target.closest("[data-help-action]");
   if (helpAction) {
     const help = state.helps.find((item) => item.id === helpAction.dataset.helpId);
@@ -983,6 +1156,10 @@ document.addEventListener("click", (event) => {
 
   const coffeeButton = event.target.closest("[data-coffee-id]");
   if (coffeeButton) {
+    if (!hasSeatTimeLeft()) {
+      alert("오늘 무료 좌석 이용 시간이 끝났습니다. 내일 다시 커피챗을 요청할 수 있어요.");
+      return;
+    }
     const match = state.builders.find((builder) => builder.id === coffeeButton.dataset.coffeeId);
     if (!match) return;
     coffeeButton.disabled = true;
@@ -1063,7 +1240,27 @@ byId("saveProfile").addEventListener("click", async () => {
   }
 });
 
+byId("sitSeatButton").addEventListener("click", async () => {
+  if (!hasSeatTimeLeft()) {
+    alert("오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.");
+    return;
+  }
+  if (!selectedSeatIsEmpty() && !selectedSeatIsMine()) {
+    alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
+    return;
+  }
+  isSeatCheckedIn = true;
+  localStorage.setItem("ai-builder-seat-checked-in", todayKey());
+  setUsageSeconds(getUsageSeconds() + 60);
+  await addRoomChat(`${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`);
+  renderAll();
+});
+
 byId("createRoom").addEventListener("click", async () => {
+  if (!hasSeatTimeLeft()) {
+    alert("오늘 무료 좌석 이용 시간이 끝났습니다. 내일 다시 새 방을 만들 수 있어요.");
+    return;
+  }
   const category = state.profile.category;
   const number = state.rooms.filter((room) => room.category === category).length + 1;
   const room = {
@@ -1098,6 +1295,10 @@ byId("createRoom").addEventListener("click", async () => {
 
 byId("chatForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!hasSeatTimeLeft()) {
+    alert("오늘 무료 좌석 이용 시간이 끝났습니다. 채팅은 내일 다시 사용할 수 있어요.");
+    return;
+  }
   const input = byId("chatInput");
   const text = input.value.trim();
   if (!text) return;
@@ -1112,6 +1313,10 @@ byId("chatForm").addEventListener("submit", async (event) => {
 
 byId("helpForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!hasSeatTimeLeft()) {
+    alert("오늘 무료 좌석 이용 시간이 끝났습니다. 도움 요청은 내일 다시 사용할 수 있어요.");
+    return;
+  }
   const form = event.currentTarget;
   const data = new FormData(form);
   try {

@@ -43,10 +43,31 @@
         <div class="brand">
           <div class="brand-mark">AI</div>
           <div>
-            <h1>AI 작업실</h1>
-            <p>AI 빌더들의 온라인 코워킹 공간</p>
+            <h1>AI 스터디카페</h1>
+            <p>AI 빌더 전용 온라인 좌석권</p>
           </div>
         </div>
+
+        <section class="panel kiosk-panel">
+          <div class="section-title">
+            <span>입구 키오스크</span>
+            <span class="level-cap">DAILY PASS</span>
+          </div>
+          <div class="pass-card">
+            <div>
+              <span>AI BUILDER PASS</span>
+              <strong id="passDate">오늘</strong>
+            </div>
+            <div class="barcode" aria-hidden="true"></div>
+            <p id="passGoal">오늘의 목표를 입력하고 좌석을 선택하세요.</p>
+          </div>
+          <div class="usage-row">
+            <span id="usageToday">0시간 00분</span>
+            <span>무료 좌석권 5시간</span>
+          </div>
+          <div class="usage-bar"><div id="usageBarFill"></div></div>
+          <p class="usage-note" id="usageNote">좌석에 앉으면 이용 시간이 기록됩니다.</p>
+        </section>
 
         <section class="panel profile-panel">
           <div class="section-title">
@@ -118,8 +139,8 @@
       <section class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Live Builder Rooms</p>
-            <h2>혼자 만들지 않는 AI 작업 공간</h2>
+            <p class="eyebrow">AI Builder Study Cafe</p>
+            <h2>입장권을 받고, 층을 고르고, 좌석에 앉아 작업하세요</h2>
           </div>
           <div class="topbar-actions">
             <button class="ghost-button" id="signOut">로그아웃</button>
@@ -135,6 +156,14 @@
         </nav>
 
         <section class="view active" id="roomsView">
+          <section class="floor-directory panel">
+            <div class="section-title">
+              <span>층별 안내</span>
+              <span class="level-cap">STUDY CAFE MAP</span>
+            </div>
+            <div class="floor-grid" id="floorGrid"></div>
+          </section>
+
           <div class="room-layout">
             <section class="room-list panel">
               <div class="section-title">
@@ -153,7 +182,23 @@
                 <div class="capacity"><span id="activeRoomCount">0</span>/<span id="activeRoomLimit">8</span></div>
               </div>
 
+              <div class="notice-board">
+                <span>정숙해주세요</span>
+                <span>도움 요청은 Help Desk에서</span>
+                <span>음식물 취식은 Coffee Lounge에서</span>
+                <span>완성작은 Showcase Hall에 전시</span>
+              </div>
+
               <div class="builder-grid" id="builderGrid"></div>
+
+              <div class="seat-info" id="seatInfo">
+                <div>
+                  <p class="eyebrow">Selected Seat</p>
+                  <strong id="selectedSeatTitle">좌석을 선택하세요</strong>
+                  <p id="selectedSeatCopy">빈 좌석을 클릭하면 오늘의 작업 좌석으로 사용할 수 있습니다.</p>
+                </div>
+                <button class="primary-button" id="sitSeatButton">이 자리에 앉기</button>
+              </div>
 
               <div class="room-bottom">
                 <section>
