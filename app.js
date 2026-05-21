@@ -298,6 +298,24 @@ async function signInWithProvider(provider) {
   if (error) showAuth(error.message);
 }
 
+async function signInWithEmail(email) {
+  if (!authClient) {
+    showAuth("Supabase 설정이 아직 없습니다. config.js에 supabaseUrl과 supabaseAnonKey를 먼저 넣어주세요.");
+    return;
+  }
+  const { error } = await authClient.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: authConfig.redirectTo || window.location.origin
+    }
+  });
+  if (error) {
+    showAuth(error.message);
+    return;
+  }
+  showAuth("로그인 링크를 이메일로 보냈습니다. 메일함에서 링크를 눌러 다시 들어오면 작업방이 열립니다.");
+}
+
 async function signOut() {
   if (authClient) await authClient.auth.signOut();
   currentUser = null;
@@ -903,5 +921,10 @@ byId("resetDemo").addEventListener("click", () => {
 byId("githubLogin").addEventListener("click", () => signInWithProvider("github"));
 byId("googleLogin").addEventListener("click", () => signInWithProvider("google"));
 byId("signOut").addEventListener("click", signOut);
+byId("emailLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const email = byId("emailLoginInput").value.trim();
+  if (email) signInWithEmail(email);
+});
 
 initAuth();

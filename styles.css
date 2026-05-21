@@ -91,6 +91,16 @@ button {
   gap: 10px;
 }
 
+.email-auth {
+  display: grid;
+}
+
+.email-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
 .auth-warning {
   display: none;
   border: 1px solid rgba(201, 129, 94, 0.4);
@@ -637,6 +647,7 @@ textarea:focus {
 
   .topbar-actions,
   .auth-actions,
+  .email-row,
   .field-grid,
   .room-bottom,
   .builder-grid,
