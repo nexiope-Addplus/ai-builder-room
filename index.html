@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 작업실</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">AI</div>
+          <div>
+            <h1>AI 작업실</h1>
+            <p>AI 빌더들의 온라인 코워킹 공간</p>
+          </div>
+        </div>
+
+        <section class="panel profile-panel">
+          <div class="section-title">
+            <span>내 작업 상태</span>
+            <button class="icon-button" id="resetDemo" title="데모 초기화">↻</button>
+          </div>
+          <label>
+            닉네임
+            <input id="nicknameInput" placeholder="예: Sangwan" />
+          </label>
+          <label>
+            오늘의 목표
+            <textarea id="goalInput" rows="3" placeholder="예: Claude Code로 예약 페이지 MVP 만들기"></textarea>
+          </label>
+          <div class="field-grid">
+            <label>
+              카테고리
+              <select id="categoryInput"></select>
+            </label>
+            <label>
+              상태
+              <select id="statusInput"></select>
+            </label>
+          </div>
+          <label>
+            사용 도구
+            <input id="toolsInput" placeholder="Claude Code, Cursor, Figma" />
+          </label>
+          <button class="primary-button" id="saveProfile">상태 저장</button>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <span>빠른 지표</span>
+          </div>
+          <div class="metrics">
+            <div><strong id="metricOnline">0</strong><span>작업자</span></div>
+            <div><strong id="metricHelp">0</strong><span>도움 요청</span></div>
+            <div><strong id="metricSolved">0%</strong><span>해결률</span></div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Live Builder Rooms</p>
+            <h2>혼자 만들지 않는 AI 작업 공간</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" data-open-modal="coffeeModal">커피챗 찾기</button>
+            <button class="primary-button" data-open-modal="helpModal">도움 요청</button>
+          </div>
+        </header>
+
+        <nav class="tabs" aria-label="메인 보기">
+          <button class="tab active" data-view="rooms">작업방</button>
+          <button class="tab" data-view="qa">Q&A</button>
+          <button class="tab" data-view="showcase">쇼케이스</button>
+        </nav>
+
+        <section class="view active" id="roomsView">
+          <div class="room-layout">
+            <section class="room-list panel">
+              <div class="section-title">
+                <span>방 목록</span>
+                <button class="small-button" id="createRoom">새 방</button>
+              </div>
+              <div id="roomsList" class="rooms-list"></div>
+            </section>
+
+            <section class="room-stage panel">
+              <div class="room-header">
+                <div>
+                  <p class="eyebrow" id="activeRoomType">Vibe Coding</p>
+                  <h3 id="activeRoomName">작업방</h3>
+                </div>
+                <div class="capacity"><span id="activeRoomCount">0</span>/<span id="activeRoomLimit">8</span></div>
+              </div>
+
+              <div class="builder-grid" id="builderGrid"></div>
+
+              <div class="room-bottom">
+                <section>
+                  <div class="section-title">
+                    <span>방 안 도움 요청</span>
+                  </div>
+                  <div id="roomHelpList" class="compact-list"></div>
+                </section>
+                <section>
+                  <div class="section-title">
+                    <span>작업 채팅</span>
+                  </div>
+                  <div id="chatList" class="chat-list"></div>
+                  <form id="chatForm" class="inline-form">
+                    <input id="chatInput" placeholder="짧게 공유하기" />
+                    <button class="small-button">전송</button>
+                  </form>
+                </section>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="qaView">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Category Q&A</p>
+              <h3>막힌 지점을 맥락과 함께 남기기</h3>
+            </div>
+            <button class="primary-button" data-open-modal="questionModal">질문 올리기</button>
+          </div>
+          <div class="card-grid" id="qaList"></div>
+        </section>
+
+        <section class="view" id="showcaseView">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Today Shipped</p>
+              <h3>오늘 만든 것 공유하기</h3>
+            </div>
+            <button class="primary-button" data-open-modal="showcaseModal">결과 공유</button>
+          </div>
+          <div class="card-grid" id="showcaseList"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="helpModal" class="modal">
+      <form method="dialog" class="modal-card" id="helpForm">
+        <div class="modal-header">
+          <h3>도움 요청</h3>
+          <button class="icon-button" value="cancel" title="닫기">×</button>
+        </div>
+        <input name="title" placeholder="제목: Supabase auth 연결이 막혔어요" required />
+        <div class="field-grid">
+          <select name="category" required></select>
+          <select name="type" required>
+            <option>디버깅</option>
+            <option>프롬프트 개선</option>
+            <option>구조 설계</option>
+            <option>디자인 피드백</option>
+            <option>자동화 로직</option>
+            <option>배포/연동</option>
+          </select>
+        </div>
+        <input name="tools" placeholder="사용 도구: Claude Code, Cursor, Supabase" />
+        <textarea name="body" rows="5" placeholder="어디서 막혔는지 짧게 설명해주세요." required></textarea>
+        <button class="primary-button">요청 올리기</button>
+      </form>
+    </dialog>
+
+    <dialog id="questionModal" class="modal">
+      <form method="dialog" class="modal-card" id="questionForm">
+        <div class="modal-header">
+          <h3>질문 올리기</h3>
+          <button class="icon-button" value="cancel" title="닫기">×</button>
+        </div>
+        <input name="title" placeholder="질문 제목" required />
+        <div class="field-grid">
+          <select name="category" required></select>
+          <input name="tools" placeholder="관련 도구" />
+        </div>
+        <textarea name="body" rows="5" placeholder="상황과 원하는 답변을 적어주세요." required></textarea>
+        <button class="primary-button">질문 등록</button>
+      </form>
+    </dialog>
+
+    <dialog id="showcaseModal" class="modal">
+      <form method="dialog" class="modal-card" id="showcaseForm">
+        <div class="modal-header">
+          <h3>결과 공유</h3>
+          <button class="icon-button" value="cancel" title="닫기">×</button>
+        </div>
+        <input name="title" placeholder="무엇을 만들었나요?" required />
+        <div class="field-grid">
+          <select name="category" required></select>
+          <input name="url" placeholder="링크 URL" />
+        </div>
+        <input name="tools" placeholder="사용 도구" />
+        <textarea name="body" rows="5" placeholder="만든 과정, 배운 점, 받고 싶은 피드백" required></textarea>
+        <button class="primary-button">공유하기</button>
+      </form>
+    </dialog>
+
+    <dialog id="coffeeModal" class="modal">
+      <form method="dialog" class="modal-card">
+        <div class="modal-header">
+          <h3>커피챗 후보</h3>
+          <button class="icon-button" value="cancel" title="닫기">×</button>
+        </div>
+        <div id="coffeeMatches" class="match-list"></div>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
