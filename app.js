@@ -797,9 +797,16 @@ function renderBuilders() {
 
   byId("builderGrid").innerHTML = `
     <div class="cafe-room">
-      <div class="cafe-prop prop-window"></div>
-      <div class="cafe-prop prop-help"></div>
-      <div class="cafe-prop prop-cafe"></div>
+      <div class="room-wall wall-top"></div>
+      <div class="room-wall wall-left"></div>
+      <div class="cafe-prop prop-window"><span>창가석</span></div>
+      <div class="cafe-prop prop-help"><span>HELP DESK</span></div>
+      <div class="cafe-prop prop-cafe"><span>COFFEE</span></div>
+      <div class="cafe-prop prop-showcase"><span>SHOWCASE</span></div>
+      <div class="cafe-prop prop-bookshelf"><span>DOCS</span></div>
+      <div class="entry-gate"><span>SCAN PASS</span></div>
+      <div class="quiet-sign">정숙 · 집중 · 공유</div>
+      <div class="main-aisle"></div>
       ${seatPlan
         .slice(0, room.limit)
         .map((seat) => {
@@ -808,6 +815,7 @@ function renderBuilders() {
           const empty = !builder;
           const statusIcon = builder?.status === "도움 필요" ? "!" : builder?.status === "커피챗 가능" ? "☕" : builder ? "◐" : "";
           const statusClass = builder?.status === "도움 필요" ? "help" : builder?.status === "커피챗 가능" ? "coffee" : builder ? "focus" : "empty";
+          const displayName = builder?.name || "Available";
       return `
         <button class="seat-button ${statusClass} ${empty ? "empty" : ""} ${selected ? "selected" : ""}"
           style="left:${seat.x}px; top:${seat.y}px"
@@ -821,9 +829,10 @@ function renderBuilders() {
           <span class="seat-label">${escapeHtml(seat.id)}</span>
           <span class="seat-desk">
             <span class="seat-laptop"></span>
-            <span class="seat-avatar"></span>
+            <span class="seat-avatar">${empty ? "" : escapeHtml(initials(builder.name))}</span>
             <span class="seat-status">${escapeHtml(statusIcon)}</span>
           </span>
+          <span class="seat-name">${escapeHtml(displayName)}</span>
         </button>
       `;
         })
