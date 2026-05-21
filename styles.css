@@ -1008,6 +1008,7 @@ button:disabled {
   box-shadow:
     inset 0 0 0 8px rgba(255, 250, 242, 0.18),
     0 18px 30px rgba(37, 44, 47, 0.13);
+  transform-style: preserve-3d;
 }
 
 .cafe-room::before {
@@ -1015,6 +1016,23 @@ button:disabled {
     linear-gradient(90deg, rgba(87, 68, 51, 0.1) 1px, transparent 1px),
     linear-gradient(rgba(87, 68, 51, 0.1) 1px, transparent 1px);
   background-size: 42px 42px;
+}
+
+.cafe-room::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: 74px;
+  right: 160px;
+  top: 132px;
+  bottom: 116px;
+  border: 3px solid rgba(87, 68, 51, 0.16);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 18% 24%, rgba(241, 199, 91, 0.16) 0 9%, transparent 10%),
+    radial-gradient(circle at 72% 72%, rgba(49, 95, 114, 0.12) 0 11%, transparent 12%),
+    rgba(255, 250, 242, 0.1);
+  pointer-events: none;
 }
 
 .room-wall {
@@ -1048,6 +1066,18 @@ button:disabled {
   border-left: 2px dashed rgba(87, 68, 51, 0.28);
   border-right: 2px dashed rgba(87, 68, 51, 0.28);
   background: rgba(255, 250, 242, 0.16);
+}
+
+.main-aisle::before {
+  content: "AISLE";
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  color: rgba(87, 68, 51, 0.38);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .cafe-prop {
@@ -1149,8 +1179,8 @@ button:disabled {
 
 .seat-button {
   z-index: 4;
-  width: 122px;
-  height: 126px;
+  width: 128px;
+  height: 134px;
   border-radius: 8px;
   transition: transform 0.15s ease, filter 0.15s ease;
 }
@@ -1168,7 +1198,7 @@ button:disabled {
 }
 
 .seat-desk {
-  inset: 20px 0 18px;
+  inset: 28px 0 18px;
   border-color: #4e3524;
   border-radius: 7px;
   background:
@@ -1191,8 +1221,8 @@ button:disabled {
 }
 
 .seat-laptop {
-  left: 37px;
-  top: 20px;
+  left: 66px;
+  top: 18px;
   width: 45px;
   height: 30px;
   border-color: #263238;
@@ -1202,19 +1232,93 @@ button:disabled {
     #79c5d8;
 }
 
+.seat-keyboard {
+  position: absolute;
+  left: 67px;
+  top: 51px;
+  width: 42px;
+  height: 8px;
+  border: 2px solid #263238;
+  background:
+    repeating-linear-gradient(90deg, #263238 0 2px, #fffaf2 2px 5px);
+}
+
 .seat-avatar {
   display: grid;
   place-items: center;
-  left: 40px;
-  bottom: 10px;
-  width: 36px;
-  height: 36px;
-  border-color: #263238;
-  border-radius: 50% 50% 42% 42%;
+  left: 22px;
+  bottom: 5px;
+  width: 42px;
+  height: 58px;
+  border: 0;
+  background: transparent;
+}
+
+.avatar-hair,
+.avatar-face,
+.avatar-body {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 3px solid #263238;
+}
+
+.avatar-hair {
+  top: 0;
+  width: 34px;
+  height: 18px;
+  border-radius: 12px 12px 4px 4px;
+  background: #2f3d3c;
+}
+
+.avatar-face {
+  top: 12px;
+  width: 34px;
+  height: 30px;
+  border-radius: 12px 12px 10px 10px;
   background: #f1c75b;
   color: #263238;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
+}
+
+.avatar-face::before,
+.avatar-face::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #263238;
+}
+
+.avatar-face::before {
+  left: 8px;
+}
+
+.avatar-face::after {
+  right: 8px;
+}
+
+.avatar-body {
+  bottom: 0;
+  width: 38px;
+  height: 24px;
+  border-radius: 9px 9px 5px 5px;
+  background: #315f72;
+}
+
+.seat-button.help .avatar-body {
+  background: #c35f51;
+}
+
+.seat-button.coffee .avatar-body {
+  background: #c9815e;
+}
+
+.seat-button.focus .avatar-body {
+  background: #315f72;
 }
 
 .seat-status {
@@ -1257,6 +1361,64 @@ button:disabled {
 }
 
 .seat-button.empty .seat-name {
+  color: var(--muted);
+}
+
+.seat-speech {
+  position: absolute;
+  z-index: 6;
+  left: 24px;
+  right: 0;
+  top: -18px;
+  display: none;
+  border: 3px solid #263238;
+  border-radius: 8px;
+  background: #fffaf2;
+  color: var(--ink);
+  padding: 5px 7px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+  box-shadow: 4px 4px 0 rgba(38, 50, 56, 0.18);
+}
+
+.seat-speech::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  bottom: -10px;
+  width: 12px;
+  height: 12px;
+  border-right: 3px solid #263238;
+  border-bottom: 3px solid #263238;
+  background: #fffaf2;
+  transform: rotate(45deg);
+}
+
+.seat-button:not(.empty) .seat-speech {
+  display: block;
+}
+
+.seat-tool {
+  position: absolute;
+  right: 3px;
+  top: 32px;
+  z-index: 5;
+  max-width: 58px;
+  overflow: hidden;
+  border: 2px solid #263238;
+  border-radius: 999px;
+  background: #e7f4f7;
+  color: #25424a;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-button.empty .seat-tool {
+  background: #fff8eb;
   color: var(--muted);
 }
 

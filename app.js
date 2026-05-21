@@ -656,6 +656,15 @@ function initials(name) {
   return name.trim().slice(0, 2).toUpperCase() || "AI";
 }
 
+function shortText(value, max = 24) {
+  const text = String(value || "").trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function primaryTool(value) {
+  return parseTools(value)[0] || "AI";
+}
+
 function levelFromXp(xp) {
   let level = 1;
   let spent = 0;
@@ -816,6 +825,8 @@ function renderBuilders() {
           const statusIcon = builder?.status === "도움 필요" ? "!" : builder?.status === "커피챗 가능" ? "☕" : builder ? "◐" : "";
           const statusClass = builder?.status === "도움 필요" ? "help" : builder?.status === "커피챗 가능" ? "coffee" : builder ? "focus" : "empty";
           const displayName = builder?.name || "Available";
+          const tool = builder ? primaryTool(builder.tools) : "Open";
+          const bubbleText = builder ? shortText(builder.goal, 22) : "빈 좌석";
       return `
         <button class="seat-button ${statusClass} ${empty ? "empty" : ""} ${selected ? "selected" : ""}"
           style="left:${seat.x}px; top:${seat.y}px"
@@ -826,12 +837,19 @@ function renderBuilders() {
           data-builder-goal="${escapeHtml(builder?.goal || "이 좌석을 선택해 오늘의 작업을 시작하세요.")}"
           data-builder-tools="${escapeHtml(builder?.tools || "-")}"
           data-builder-status="${escapeHtml(builder?.status || "사용 가능")}">
+          <span class="seat-speech">${escapeHtml(bubbleText)}</span>
           <span class="seat-label">${escapeHtml(seat.id)}</span>
           <span class="seat-desk">
             <span class="seat-laptop"></span>
-            <span class="seat-avatar">${empty ? "" : escapeHtml(initials(builder.name))}</span>
+            <span class="seat-keyboard"></span>
+            <span class="seat-avatar">
+              <span class="avatar-hair"></span>
+              <span class="avatar-face">${empty ? "" : escapeHtml(initials(builder.name))}</span>
+              <span class="avatar-body"></span>
+            </span>
             <span class="seat-status">${escapeHtml(statusIcon)}</span>
           </span>
+          <span class="seat-tool">${escapeHtml(tool)}</span>
           <span class="seat-name">${escapeHtml(displayName)}</span>
         </button>
       `;
