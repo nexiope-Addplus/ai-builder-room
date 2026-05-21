@@ -9,18 +9,18 @@ const floorPlan = [
   { floor: "4F", category: "Showcase", name: "Showcase Hall", note: "완성작 전시" }
 ];
 const seatPlan = [
-  { id: "A1", name: "창가 집중석", x: 60, y: 178 },
-  { id: "A2", name: "조용한 구석석", x: 240, y: 178 },
-  { id: "A3", name: "도움 데스크 근처", x: 420, y: 178 },
-  { id: "A4", name: "디자인 피드백석", x: 570, y: 178 },
-  { id: "B1", name: "중앙 빌드석", x: 60, y: 358 },
-  { id: "B2", name: "커피챗 가능석", x: 240, y: 358 },
-  { id: "B3", name: "몰입 코너석", x: 420, y: 358 },
-  { id: "B4", name: "조용한 예약석", x: 570, y: 358 },
-  { id: "C1", name: "상담 데스크석", x: 526, y: 452 },
-  { id: "C2", name: "빠른 질문석", x: 82, y: 270 },
-  { id: "C3", name: "멘토 대기석", x: 304, y: 270 },
-  { id: "C4", name: "예비 좌석", x: 526, y: 270 }
+  { id: "A1", name: "창가 집중석", x: 50, y: 150 },
+  { id: "A2", name: "조용한 구석석", x: 223, y: 150 },
+  { id: "A3", name: "도움 데스크 근처", x: 396, y: 150 },
+  { id: "A4", name: "디자인 피드백석", x: 569, y: 150 },
+  { id: "B1", name: "중앙 빌드석", x: 50, y: 278 },
+  { id: "B2", name: "커피챗 가능석", x: 223, y: 278 },
+  { id: "B3", name: "몰입 코너석", x: 396, y: 278 },
+  { id: "B4", name: "조용한 예약석", x: 569, y: 278 },
+  { id: "C1", name: "상담 데스크석", x: 50, y: 398 },
+  { id: "C2", name: "빠른 질문석", x: 223, y: 398 },
+  { id: "C3", name: "멘토 대기석", x: 396, y: 398 },
+  { id: "C4", name: "예비 좌석", x: 569, y: 398 }
 ];
 const toolOptions = [
   "Claude",
@@ -665,6 +665,29 @@ function primaryTool(value) {
   return parseTools(value)[0] || "AI";
 }
 
+function roomThemeClass(category) {
+  const slug = {
+    "Vibe Coding": "vibe",
+    "App Building": "app",
+    Design: "design",
+    Automation: "automation",
+    "Prompt / Workflow": "help",
+    Showcase: "showcase"
+  }[category];
+  return `theme-${slug || "vibe"}`;
+}
+
+function roomThemeLabel(category) {
+  return {
+    "Vibe Coding": "VIBE CODING LAB",
+    "App Building": "APP BUILD ROOM",
+    Design: "DESIGN STUDIO",
+    Automation: "AUTOMATION LAB",
+    "Prompt / Workflow": "HELP DESK",
+    Showcase: "SHOWCASE HALL"
+  }[category] || "AI BUILDER ROOM";
+}
+
 function levelFromXp(xp) {
   let level = 1;
   let spent = 0;
@@ -799,16 +822,19 @@ function renderFloors() {
 function renderBuilders() {
   const room = activeRoom();
   const builders = roomBuilders(room.id);
+  const themeClass = roomThemeClass(room.category);
+  const themeLabel = roomThemeLabel(room.category);
   const occupants = new Map();
   seatPlan.slice(0, room.limit).forEach((seat, index) => {
     occupants.set(seat.id, builders[index] || null);
   });
 
   byId("builderGrid").innerHTML = `
-    <div class="cafe-room game-room">
+    <div class="cafe-room game-room ${themeClass}">
       <div class="map-zone zone-wood"></div>
       <div class="room-wall wall-top"></div>
       <div class="room-wall wall-left"></div>
+      <div class="room-theme-sign">${escapeHtml(themeLabel)}</div>
       <div class="cafe-prop prop-bookcase prop-bookcase-left"><span></span></div>
       <div class="cafe-prop prop-bookcase prop-bookcase-mid"><span></span></div>
       <div class="cafe-prop prop-bookcase prop-bookcase-right"><span></span></div>
@@ -820,6 +846,8 @@ function renderBuilders() {
       <div class="cafe-prop prop-window"><span></span></div>
       <div class="cafe-prop prop-help"><span>HELP</span></div>
       <div class="cafe-prop prop-showcase"><span>SHOWCASE</span></div>
+      <div class="cafe-prop prop-theme prop-theme-one"><span></span></div>
+      <div class="cafe-prop prop-theme prop-theme-two"><span></span></div>
       <div class="entry-gate"><span>SCAN PASS</span></div>
       <div class="quiet-sign">정숙 · 집중 · 공유</div>
       <div class="main-aisle"></div>

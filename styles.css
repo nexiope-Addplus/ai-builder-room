@@ -991,6 +991,17 @@ button:disabled {
 }
 
 .game-room {
+  --room-floor-a: #9b642f;
+  --room-floor-b: #a56d36;
+  --room-grid-a: rgba(72, 44, 24, 0.25);
+  --room-grid-b: rgba(72, 44, 24, 0.18);
+  --room-wall-a: #192636;
+  --room-wall-b: #101925;
+  --room-accent: #315f72;
+  --room-accent-strong: #f1c75b;
+  --room-book-frame: #4f2b32;
+  --room-desk-a: #a56523;
+  --room-desk-b: #7d431d;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -1006,9 +1017,9 @@ button:disabled {
   bottom: 0;
   width: 100%;
   background:
-    linear-gradient(90deg, rgba(72, 44, 24, 0.25) 1px, transparent 1px),
-    linear-gradient(rgba(72, 44, 24, 0.18) 1px, transparent 1px),
-    repeating-linear-gradient(90deg, #9b642f 0 30px, #a56d36 30px 60px);
+    linear-gradient(90deg, var(--room-grid-a) 1px, transparent 1px),
+    linear-gradient(var(--room-grid-b) 1px, transparent 1px),
+    repeating-linear-gradient(90deg, var(--room-floor-a) 0 30px, var(--room-floor-b) 30px 60px);
   background-size: 30px 30px, 30px 30px, auto;
 }
 
@@ -1018,8 +1029,8 @@ button:disabled {
   height: 560px;
   overflow: hidden;
   border: 0;
-  background: #101925;
-  box-shadow: inset 0 0 0 8px #101925;
+  background: var(--room-wall-b);
+  box-shadow: inset 0 0 0 8px var(--room-wall-b);
   transform-style: preserve-3d;
 }
 
@@ -1031,7 +1042,7 @@ button:disabled {
   right: 0;
   top: 22px;
   height: 44px;
-  background: rgba(16, 25, 37, 0.18);
+  background: color-mix(in srgb, var(--room-wall-b) 68%, transparent);
   pointer-events: none;
 }
 
@@ -1043,7 +1054,7 @@ button:disabled {
   top: 0;
   bottom: 0;
   width: 22px;
-  background: linear-gradient(90deg, #101925, #192636);
+  background: linear-gradient(90deg, var(--room-wall-b), var(--room-wall-a));
   pointer-events: none;
 }
 
@@ -1059,7 +1070,7 @@ button:disabled {
   right: 0;
   height: 22px;
   background:
-    linear-gradient(#192636, #101925);
+    linear-gradient(var(--room-wall-a), var(--room-wall-b));
 }
 
 .game-room .wall-left {
@@ -1067,12 +1078,27 @@ button:disabled {
   bottom: 0;
   left: 0;
   width: 22px;
-  background: linear-gradient(90deg, #192636, #101925);
+  background: linear-gradient(90deg, var(--room-wall-a), var(--room-wall-b));
 }
 
 .room-wall {
   z-index: 1;
-  background: #101925;
+  background: var(--room-wall-b);
+}
+
+.room-theme-sign {
+  position: absolute;
+  z-index: 3;
+  left: 342px;
+  top: 28px;
+  border: 3px solid var(--room-book-frame);
+  background: var(--room-accent);
+  color: var(--room-accent-strong);
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.22);
 }
 
 .cafe-prop {
@@ -1086,7 +1112,7 @@ button:disabled {
 .prop-bookcase {
   width: 136px;
   height: 54px;
-  border: 4px solid #4f2b32;
+  border: 4px solid var(--room-book-frame);
   background:
     linear-gradient(#d1a25e 0 12px, transparent 12px 16px, #d1a25e 16px 28px, transparent 28px 32px, #d1a25e 32px),
     repeating-linear-gradient(90deg, #79443b 0 10px, #f4e3b0 10px 16px, #2d6684 16px 24px, #78a95a 24px 32px);
@@ -1116,9 +1142,9 @@ button:disabled {
   width: 102px;
   border: 0;
   background:
-    linear-gradient(90deg, rgba(111, 71, 34, 0.28) 1px, transparent 1px),
-    linear-gradient(rgba(111, 71, 34, 0.24) 1px, transparent 1px),
-    #9b642f;
+    linear-gradient(90deg, var(--room-grid-a) 1px, transparent 1px),
+    linear-gradient(var(--room-grid-b) 1px, transparent 1px),
+    var(--room-floor-a);
   background-size: 30px 30px;
 }
 
@@ -1152,8 +1178,8 @@ button:disabled {
   width: 96px;
   height: 44px;
   border: 4px solid #432c24;
-  background: #315f72;
-  color: #f1c75b;
+  background: var(--room-accent);
+  color: var(--room-accent-strong);
 }
 
 .prop-help::after,
@@ -1167,6 +1193,159 @@ button:disabled {
 
 .prop-showcase {
   display: none;
+}
+
+.prop-theme {
+  display: none;
+}
+
+.theme-vibe {
+  --room-floor-a: #9b642f;
+  --room-floor-b: #a56d36;
+  --room-grid-a: rgba(72, 44, 24, 0.25);
+  --room-grid-b: rgba(72, 44, 24, 0.18);
+  --room-wall-a: #192636;
+  --room-wall-b: #101925;
+  --room-accent: #315f72;
+  --room-accent-strong: #f1c75b;
+  --room-book-frame: #4f2b32;
+  --room-desk-a: #a56523;
+  --room-desk-b: #7d431d;
+}
+
+.theme-app {
+  --room-floor-a: #7d6947;
+  --room-floor-b: #8d7651;
+  --room-grid-a: rgba(46, 37, 26, 0.3);
+  --room-grid-b: rgba(46, 37, 26, 0.18);
+  --room-wall-a: #263238;
+  --room-wall-b: #182329;
+  --room-accent: #4a7c6e;
+  --room-accent-strong: #f3e3a2;
+  --room-book-frame: #365d52;
+  --room-desk-a: #8a7049;
+  --room-desk-b: #665038;
+}
+
+.theme-design {
+  --room-floor-a: #4d91b0;
+  --room-floor-b: #5ba0bd;
+  --room-grid-a: rgba(22, 60, 82, 0.28);
+  --room-grid-b: rgba(22, 60, 82, 0.18);
+  --room-wall-a: #263a54;
+  --room-wall-b: #172437;
+  --room-accent: #d7839f;
+  --room-accent-strong: #fff3c6;
+  --room-book-frame: #754d55;
+  --room-desk-a: #b87b8f;
+  --room-desk-b: #8d5266;
+}
+
+.theme-design .prop-theme-one {
+  display: block;
+  left: 566px;
+  top: 70px;
+  width: 70px;
+  height: 46px;
+  border: 4px solid #754d55;
+  background:
+    radial-gradient(circle at 22% 36%, #f1c75b 0 7px, transparent 8px),
+    linear-gradient(135deg, transparent 0 55%, #74a56a 56%),
+    #bfe5ea;
+}
+
+.theme-design .prop-theme-two {
+  display: block;
+  left: 644px;
+  top: 70px;
+  width: 42px;
+  height: 80px;
+  border: 4px solid #754d55;
+  background: #d7839f;
+}
+
+.theme-automation {
+  --room-floor-a: #23343a;
+  --room-floor-b: #2a4148;
+  --room-grid-a: rgba(109, 220, 185, 0.25);
+  --room-grid-b: rgba(109, 220, 185, 0.13);
+  --room-wall-a: #111b22;
+  --room-wall-b: #081018;
+  --room-accent: #2f8f7b;
+  --room-accent-strong: #b9ffe6;
+  --room-book-frame: #245d55;
+  --room-desk-a: #3f6367;
+  --room-desk-b: #28484d;
+}
+
+.theme-automation .prop-theme-one {
+  display: block;
+  left: 574px;
+  top: 66px;
+  width: 54px;
+  height: 72px;
+  border: 4px solid #245d55;
+  background:
+    linear-gradient(#9be8d1 0 18px, #101925 18px 24px, #213d43 24px),
+    repeating-linear-gradient(90deg, #6ddcb9 0 8px, #1b3038 8px 16px);
+}
+
+.theme-automation .prop-theme-two {
+  display: block;
+  left: 642px;
+  top: 72px;
+  width: 62px;
+  height: 46px;
+  border: 4px solid #245d55;
+  background:
+    radial-gradient(circle at 20% 50%, #6ddcb9 0 5px, transparent 6px),
+    radial-gradient(circle at 50% 50%, #f1c75b 0 5px, transparent 6px),
+    radial-gradient(circle at 80% 50%, #e56c5b 0 5px, transparent 6px),
+    #16252b;
+}
+
+.theme-help {
+  --room-floor-a: #b99157;
+  --room-floor-b: #c39d62;
+  --room-grid-a: rgba(87, 58, 30, 0.22);
+  --room-grid-b: rgba(87, 58, 30, 0.15);
+  --room-wall-a: #2f2b22;
+  --room-wall-b: #1e1a14;
+  --room-accent: #c9815e;
+  --room-accent-strong: #fff0d1;
+  --room-book-frame: #6a4931;
+  --room-desk-a: #b87b4a;
+  --room-desk-b: #8b5936;
+}
+
+.theme-help .prop-help {
+  width: 132px;
+  background: #c9815e;
+}
+
+.theme-showcase {
+  --room-floor-a: #304457;
+  --room-floor-b: #3a5369;
+  --room-grid-a: rgba(218, 231, 237, 0.16);
+  --room-grid-b: rgba(218, 231, 237, 0.1);
+  --room-wall-a: #152333;
+  --room-wall-b: #0d1722;
+  --room-accent: #f1c75b;
+  --room-accent-strong: #1e2528;
+  --room-book-frame: #a77934;
+  --room-desk-a: #62788a;
+  --room-desk-b: #40586b;
+}
+
+.theme-showcase .prop-showcase {
+  display: grid;
+  right: 54px;
+  top: 438px;
+  width: 128px;
+  height: 64px;
+  border: 4px solid #a77934;
+  background: #f1c75b;
+  color: #1e2528;
 }
 
 .prop-clock {
@@ -1240,7 +1419,7 @@ button:disabled {
   height: 42px;
   border: 4px solid #102a36;
   border-radius: 0;
-  background: #315f72;
+  background: var(--room-accent);
   color: white;
 }
 
@@ -1283,7 +1462,7 @@ button:disabled {
   border-radius: 0;
   background:
     linear-gradient(90deg, rgba(52, 29, 17, 0.42) 0 8px, transparent 8px calc(100% - 8px), rgba(52, 29, 17, 0.42) calc(100% - 8px)),
-    linear-gradient(180deg, #a56523 0 18px, #7d431d 18px 24px, #a56523 24px);
+    linear-gradient(180deg, var(--room-desk-a) 0 18px, var(--room-desk-b) 18px 24px, var(--room-desk-a) 24px);
   box-shadow:
     inset 0 -8px 0 rgba(52, 29, 17, 0.3),
     0 4px 0 rgba(0, 0, 0, 0.28);
