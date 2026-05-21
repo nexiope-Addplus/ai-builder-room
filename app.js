@@ -207,6 +207,7 @@ function setProfileSaveNote(message, isError = false) {
 function showAuth(message) {
   byId("authScreen").classList.remove("is-hidden");
   byId("appShell").classList.add("is-hidden");
+  syncOAuthButtons();
   const warning = byId("authWarning");
   if (message) {
     warning.textContent = message;
@@ -220,6 +221,14 @@ function showAuth(message) {
 function showApp() {
   byId("authScreen").classList.add("is-hidden");
   byId("appShell").classList.remove("is-hidden");
+  byId("resetDemo").classList.toggle("is-hidden", remoteReady);
+}
+
+function syncOAuthButtons() {
+  const providers = new Set(authConfig.oauthProviders || []);
+  byId("githubLogin").classList.toggle("is-hidden", !providers.has("github"));
+  byId("googleLogin").classList.toggle("is-hidden", !providers.has("google"));
+  byId("authActions").classList.toggle("is-hidden", providers.size === 0);
 }
 
 function applyUserToProfile(user) {
@@ -644,10 +653,12 @@ function renderBuilders() {
 
 function renderHelp() {
   const roomHelps = state.helps.filter((help) => help.roomId === state.activeRoomId);
+  const myId = currentUser?.id || "me";
   byId("roomHelpList").innerHTML =
     roomHelps
-      .map(
-        (help) => `
+      .map((help) => {
+        const canSolve = !remoteReady || help.userId === myId;
+        return `
           <article class="compact-item">
             <strong>${escapeHtml(help.title)}</strong>
             <p>${escapeHtml(help.body)}</p>
@@ -659,11 +670,11 @@ function renderHelp() {
             </div>
             <div class="card-actions">
               <button class="small-button" data-help-action="offer" data-help-id="${escapeHtml(help.id)}">도울게요</button>
-              <button class="small-button" data-help-action="solve" data-help-id="${escapeHtml(help.id)}" ${help.solved ? "disabled" : ""}>해결됨</button>
+              <button class="small-button" data-help-action="solve" data-help-id="${escapeHtml(help.id)}" ${help.solved || !canSolve ? "disabled" : ""}>해결됨</button>
             </div>
           </article>
-        `
-      )
+        `;
+      })
       .join("") || `<article class="compact-item"><p>아직 이 방에는 도움 요청이 없습니다.</p></article>`;
 }
 
@@ -682,9 +693,11 @@ function renderChats() {
 }
 
 function renderQuestions() {
+  const myId = currentUser?.id || "me";
   byId("qaList").innerHTML = state.questions
-    .map(
-      (question) => `
+    .map((question) => {
+      const canSolve = !remoteReady || question.userId === myId;
+      return `
         <article class="content-card">
           <h4>${escapeHtml(question.title)}</h4>
           <p>${escapeHtml(question.body)}</p>
@@ -694,11 +707,11 @@ function renderQuestions() {
             <span class="tag ${question.solved ? "solved" : ""}">${question.solved ? "해결됨" : "미해결"}</span>
           </div>
           <div class="card-actions">
-            <button class="small-button" data-question-action="solve" data-question-id="${escapeHtml(question.id)}" ${question.solved ? "disabled" : ""}>해결됨</button>
+            <button class="small-button" data-question-action="solve" data-question-id="${escapeHtml(question.id)}" ${question.solved || !canSolve ? "disabled" : ""}>해결됨</button>
           </div>
         </article>
-      `
-    )
+      `;
+    })
     .join("");
 }
 
@@ -734,7 +747,8 @@ function renderCoffeeMatches() {
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
 
-  byId("coffeeMatches").innerHTML = candidates
+  byId("coffeeMatches").innerHTML = candidates.length
+    ? candidates
     .map(
       (match) => `
         <article class="match-item">
@@ -750,7 +764,8 @@ function renderCoffeeMatches() {
         </article>
       `
     )
-    .join("");
+    .join("")
+    : `<article class="match-item"><p>지금 커피챗 가능한 다른 작업자가 없습니다. 상태를 '커피챗 가능'으로 바꾸고 잠시 뒤 다시 확인해보세요.</p></article>`;
 }
 
 function renderMetrics() {
