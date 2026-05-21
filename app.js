@@ -1,5 +1,35 @@
 const categories = ["Vibe Coding", "App Building", "Design", "Automation", "Prompt / Workflow", "Showcase"];
 const statuses = ["집중 중", "질문 가능", "도움 필요", "커피챗 가능", "쉬는 중", "데모 준비 중"];
+const toolOptions = [
+  "Claude",
+  "Claude Code",
+  "GPT",
+  "ChatGPT",
+  "GPT API",
+  "Codex",
+  "Gemini",
+  "Gemini CLI",
+  "Cursor",
+  "Windsurf",
+  "Lovable",
+  "Bolt",
+  "Replit",
+  "v0",
+  "Figma",
+  "Canva",
+  "Midjourney",
+  "Make",
+  "Zapier",
+  "n8n",
+  "Notion",
+  "Google Sheets",
+  "Gmail",
+  "Slack",
+  "Supabase",
+  "Firebase",
+  "Vercel",
+  "Cloudflare"
+];
 const authConfig = window.AI_BUILDER_CONFIG || {};
 const authReady = Boolean(authConfig.supabaseUrl && authConfig.supabaseAnonKey && window.supabase);
 const authClient = authReady ? window.supabase.createClient(authConfig.supabaseUrl, authConfig.supabaseAnonKey) : null;
@@ -252,6 +282,7 @@ function mapHelp(row) {
   return {
     id: row.id,
     roomId: row.room_id,
+    userId: row.user_id,
     title: row.title,
     category: row.category,
     type: row.help_type,
@@ -264,6 +295,7 @@ function mapHelp(row) {
 function mapQuestion(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     title: row.title,
     category: row.category,
     tools: row.tools,
@@ -482,6 +514,48 @@ function fillSelect(select, options, value) {
   select.innerHTML = options.map((option) => `<option ${option === value ? "selected" : ""}>${option}</option>`).join("");
 }
 
+function parseTools(value) {
+  return String(value || "")
+    .split(",")
+    .map((tool) => tool.trim())
+    .filter(Boolean);
+}
+
+function renderToolPicker(pickerId, input, selectedValue = "") {
+  const picker = byId(pickerId);
+  if (!picker || !input) return;
+  const selected = new Set(parseTools(selectedValue));
+  input.value = [...selected].join(", ");
+  picker.innerHTML = `
+    <div class="tool-summary">${selected.size ? escapeHtml([...selected].join(", ")) : "도구를 선택하세요"}</div>
+    <div class="tool-options">
+      ${toolOptions
+        .map(
+          (tool) => `
+            <label class="tool-option">
+              <input type="checkbox" value="${escapeHtml(tool)}" ${selected.has(tool) ? "checked" : ""} />
+              ${escapeHtml(tool)}
+            </label>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function refreshToolPicker(picker, input) {
+  const selected = [...picker.querySelectorAll("input:checked")].map((item) => item.value);
+  input.value = selected.join(", ");
+  picker.querySelector(".tool-summary").textContent = selected.length ? selected.join(", ") : "도구를 선택하세요";
+}
+
+function syncModalToolPickers() {
+  if (document.activeElement?.closest(".modal")) return;
+  renderToolPicker("helpToolPicker", document.querySelector("#helpForm input[name='tools']"), state.profile.tools);
+  renderToolPicker("questionToolPicker", document.querySelector("#questionForm input[name='tools']"), state.profile.tools);
+  renderToolPicker("showcaseToolPicker", document.querySelector("#showcaseForm input[name='tools']"), state.profile.tools);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -504,12 +578,17 @@ function roomBuilders(roomId = state.activeRoomId) {
 }
 
 function syncProfileInputs(force = false) {
-  if (!force && document.activeElement?.closest(".profile-panel")) return;
+  if (!force && document.activeElement?.closest(".profile-panel")) {
+    syncModalToolPickers();
+    return;
+  }
   byId("nicknameInput").value = state.profile.nickname;
   byId("goalInput").value = state.profile.goal;
   fillSelect(byId("categoryInput"), categories, state.profile.category);
   fillSelect(byId("statusInput"), statuses, state.profile.status);
   byId("toolsInput").value = state.profile.tools;
+  renderToolPicker("profileToolPicker", byId("toolsInput"), state.profile.tools);
+  syncModalToolPickers();
 
   document.querySelectorAll("select[name='category']").forEach((select) => {
     fillSelect(select, categories, state.profile.category);
@@ -575,7 +654,12 @@ function renderHelp() {
             <div class="meta-row">
               <span class="tag">${escapeHtml(help.category)}</span>
               <span class="tag">${escapeHtml(help.type)}</span>
+              <span class="tag">${escapeHtml(help.tools || "도구 미지정")}</span>
               <span class="tag ${help.solved ? "solved" : ""}">${help.solved ? "해결됨" : "미해결"}</span>
+            </div>
+            <div class="card-actions">
+              <button class="small-button" data-help-action="offer" data-help-id="${escapeHtml(help.id)}">도울게요</button>
+              <button class="small-button" data-help-action="solve" data-help-id="${escapeHtml(help.id)}" ${help.solved ? "disabled" : ""}>해결됨</button>
             </div>
           </article>
         `
@@ -609,6 +693,9 @@ function renderQuestions() {
             <span class="tag">${escapeHtml(question.tools || "도구 미지정")}</span>
             <span class="tag ${question.solved ? "solved" : ""}">${question.solved ? "해결됨" : "미해결"}</span>
           </div>
+          <div class="card-actions">
+            <button class="small-button" data-question-action="solve" data-question-id="${escapeHtml(question.id)}" ${question.solved ? "disabled" : ""}>해결됨</button>
+          </div>
         </article>
       `
     )
@@ -636,7 +723,7 @@ function renderShowcases() {
 function renderCoffeeMatches() {
   const profile = state.profile;
   const candidates = state.builders
-    .filter((builder) => builder.id !== "me")
+    .filter((builder) => builder.id !== (currentUser?.id || "me"))
     .map((builder) => {
       const score =
         (builder.category === profile.category ? 2 : 0) +
@@ -656,6 +743,9 @@ function renderCoffeeMatches() {
           <div class="meta-row">
             <span class="tag">${escapeHtml(match.status)}</span>
             <span class="tag">${escapeHtml(match.tools)}</span>
+          </div>
+          <div class="card-actions">
+            <button class="small-button" data-coffee-id="${escapeHtml(match.id)}">커피챗 요청</button>
           </div>
         </article>
       `
@@ -701,7 +791,108 @@ function updateMyBuilder() {
   });
 }
 
+async function addRoomChat(text, roomId = state.activeRoomId) {
+  if (!text) return;
+  if (remoteReady) {
+    const { error } = await authClient.from("chats").insert({
+      room_id: roomId,
+      user_id: currentUser.id,
+      body: text
+    });
+    if (error) throw error;
+    await loadRemoteState();
+  } else {
+    state.chats.push({ id: `c-${Date.now()}`, roomId, name: state.profile.nickname || "나", text });
+    saveState();
+  }
+}
+
+async function markHelpSolved(helpId) {
+  if (remoteReady) {
+    const { error } = await authClient.from("help_requests").update({ solved: true }).eq("id", helpId);
+    if (error) throw error;
+    await loadRemoteState();
+  } else {
+    const help = state.helps.find((item) => item.id === helpId);
+    if (help) help.solved = true;
+    saveState();
+  }
+}
+
+async function markQuestionSolved(questionId) {
+  if (remoteReady) {
+    const { error } = await authClient.from("questions").update({ solved: true }).eq("id", questionId);
+    if (error) throw error;
+    await loadRemoteState();
+  } else {
+    const question = state.questions.find((item) => item.id === questionId);
+    if (question) question.solved = true;
+    saveState();
+  }
+}
+
 document.addEventListener("click", (event) => {
+  const toolInput = event.target.closest(".tool-picker input[type='checkbox']");
+  if (toolInput) {
+    const picker = toolInput.closest(".tool-picker");
+    const hiddenInput = picker.closest("label")?.querySelector("input[type='hidden']");
+    if (hiddenInput) refreshToolPicker(picker, hiddenInput);
+    return;
+  }
+
+  const helpAction = event.target.closest("[data-help-action]");
+  if (helpAction) {
+    const help = state.helps.find((item) => item.id === helpAction.dataset.helpId);
+    if (!help) return;
+    helpAction.disabled = true;
+    if (helpAction.dataset.helpAction === "offer") {
+      addRoomChat(`${state.profile.nickname || "나"}님이 "${help.title}" 도움 요청을 도울 수 있다고 했습니다.`, help.roomId)
+        .then(() => renderAll())
+        .catch((error) => alert(error.message))
+        .finally(() => {
+          helpAction.disabled = false;
+        });
+    }
+    if (helpAction.dataset.helpAction === "solve") {
+      markHelpSolved(help.id)
+        .then(() => renderAll())
+        .catch((error) => alert(`작성자만 해결 처리할 수 있습니다. ${error.message}`))
+        .finally(() => {
+          helpAction.disabled = false;
+        });
+    }
+    return;
+  }
+
+  const questionAction = event.target.closest("[data-question-action]");
+  if (questionAction) {
+    questionAction.disabled = true;
+    markQuestionSolved(questionAction.dataset.questionId)
+      .then(() => renderAll())
+      .catch((error) => alert(`작성자만 해결 처리할 수 있습니다. ${error.message}`))
+      .finally(() => {
+        questionAction.disabled = false;
+      });
+    return;
+  }
+
+  const coffeeButton = event.target.closest("[data-coffee-id]");
+  if (coffeeButton) {
+    const match = state.builders.find((builder) => builder.id === coffeeButton.dataset.coffeeId);
+    if (!match) return;
+    coffeeButton.disabled = true;
+    addRoomChat(`${state.profile.nickname || "나"}님이 ${match.name}님에게 10분 커피챗을 요청했습니다.`, match.roomId)
+      .then(() => {
+        renderAll();
+        byId("coffeeModal").close();
+      })
+      .catch((error) => alert(error.message))
+      .finally(() => {
+        coffeeButton.disabled = false;
+      });
+    return;
+  }
+
   const roomButton = event.target.closest("[data-room-id]");
   if (roomButton) {
     const nextRoomId = roomButton.dataset.roomId;
@@ -721,6 +912,7 @@ document.addEventListener("click", (event) => {
   const modalButton = event.target.closest("[data-open-modal]");
   if (modalButton) {
     const modal = byId(modalButton.dataset.openModal);
+    syncModalToolPickers();
     renderCoffeeMatches();
     modal.showModal();
   }
@@ -805,20 +997,8 @@ byId("chatForm").addEventListener("submit", async (event) => {
   const text = input.value.trim();
   if (!text) return;
   try {
-    if (remoteReady) {
-      const { error } = await authClient.from("chats").insert({
-        room_id: state.activeRoomId,
-        user_id: currentUser.id,
-        body: text
-      });
-      if (error) throw error;
-      await loadRemoteState();
-      renderAll();
-    } else {
-      state.chats.push({ id: `c-${Date.now()}`, roomId: state.activeRoomId, name: state.profile.nickname || "나", text });
-      saveState();
-      renderChats();
-    }
+    await addRoomChat(text);
+    renderAll();
     input.value = "";
   } catch (error) {
     alert(error.message);

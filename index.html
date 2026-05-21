@@ -73,7 +73,8 @@
           </div>
           <label>
             사용 도구
-            <input id="toolsInput" placeholder="Claude Code, Cursor, Figma" />
+            <input id="toolsInput" type="hidden" />
+            <div class="tool-picker" id="profileToolPicker"></div>
           </label>
           <button class="primary-button" id="saveProfile">상태 저장</button>
           <div class="save-note" id="profileSaveNote" aria-live="polite"></div>
@@ -195,7 +196,11 @@
             <option>배포/연동</option>
           </select>
         </div>
-        <input name="tools" placeholder="사용 도구: Claude Code, Cursor, Supabase" />
+        <label>
+          사용 도구
+          <input name="tools" type="hidden" />
+          <div class="tool-picker" id="helpToolPicker"></div>
+        </label>
         <textarea name="body" rows="5" placeholder="어디서 막혔는지 짧게 설명해주세요." required></textarea>
         <button class="primary-button">요청 올리기</button>
       </form>
@@ -210,7 +215,11 @@
         <input name="title" placeholder="질문 제목" required />
         <div class="field-grid">
           <select name="category" required></select>
-          <input name="tools" placeholder="관련 도구" />
+          <label>
+            관련 도구
+            <input name="tools" type="hidden" />
+            <div class="tool-picker" id="questionToolPicker"></div>
+          </label>
         </div>
         <textarea name="body" rows="5" placeholder="상황과 원하는 답변을 적어주세요." required></textarea>
         <button class="primary-button">질문 등록</button>
@@ -228,7 +237,11 @@
           <select name="category" required></select>
           <input name="url" placeholder="링크 URL" />
         </div>
-        <input name="tools" placeholder="사용 도구" />
+        <label>
+          사용 도구
+          <input name="tools" type="hidden" />
+          <div class="tool-picker" id="showcaseToolPicker"></div>
+        </label>
         <textarea name="body" rows="5" placeholder="만든 과정, 배운 점, 받고 싶은 피드백" required></textarea>
         <button class="primary-button">공유하기</button>
       </form>
