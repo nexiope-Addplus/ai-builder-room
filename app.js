@@ -832,6 +832,12 @@ async function markQuestionSolved(questionId) {
 }
 
 document.addEventListener("click", (event) => {
+  const closeModalButton = event.target.closest("[data-close-modal]");
+  if (closeModalButton) {
+    closeModalButton.closest("dialog")?.close();
+    return;
+  }
+
   const toolInput = event.target.closest(".tool-picker input[type='checkbox']");
   if (toolInput) {
     const picker = toolInput.closest(".tool-picker");
@@ -1085,16 +1091,23 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
   const data = new FormData(form);
   try {
     if (remoteReady) {
-      const { error } = await authClient.from("showcases").insert({
-        user_id: currentUser.id,
-        title: data.get("title"),
-        category: data.get("category"),
-        tools: data.get("tools"),
-        url: data.get("url"),
-        body: data.get("body")
-      });
+      const { data: created, error } = await authClient
+        .from("showcases")
+        .insert({
+          user_id: currentUser.id,
+          title: data.get("title"),
+          category: data.get("category"),
+          tools: data.get("tools"),
+          url: data.get("url"),
+          body: data.get("body")
+        })
+        .select()
+        .single();
       if (error) throw error;
       await loadRemoteState();
+      if (created && !state.showcases.some((item) => item.id === created.id)) {
+        state.showcases.unshift(mapShowcase(created));
+      }
     } else {
       state.showcases.unshift({
         id: `s-${Date.now()}`,

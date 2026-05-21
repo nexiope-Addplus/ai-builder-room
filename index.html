@@ -179,10 +179,10 @@
     </main>
 
     <dialog id="helpModal" class="modal">
-      <form method="dialog" class="modal-card" id="helpForm">
+      <form class="modal-card" id="helpForm">
         <div class="modal-header">
           <h3>도움 요청</h3>
-          <button class="icon-button" value="cancel" title="닫기">×</button>
+          <button class="icon-button" type="button" data-close-modal title="닫기">×</button>
         </div>
         <input name="title" placeholder="제목: Supabase auth 연결이 막혔어요" required />
         <div class="field-grid">
@@ -202,15 +202,15 @@
           <div class="tool-picker" id="helpToolPicker"></div>
         </label>
         <textarea name="body" rows="5" placeholder="어디서 막혔는지 짧게 설명해주세요." required></textarea>
-        <button class="primary-button">요청 올리기</button>
+        <button class="primary-button" type="submit">요청 올리기</button>
       </form>
     </dialog>
 
     <dialog id="questionModal" class="modal">
-      <form method="dialog" class="modal-card" id="questionForm">
+      <form class="modal-card" id="questionForm">
         <div class="modal-header">
           <h3>질문 올리기</h3>
-          <button class="icon-button" value="cancel" title="닫기">×</button>
+          <button class="icon-button" type="button" data-close-modal title="닫기">×</button>
         </div>
         <input name="title" placeholder="질문 제목" required />
         <div class="field-grid">
@@ -222,15 +222,15 @@
           </label>
         </div>
         <textarea name="body" rows="5" placeholder="상황과 원하는 답변을 적어주세요." required></textarea>
-        <button class="primary-button">질문 등록</button>
+        <button class="primary-button" type="submit">질문 등록</button>
       </form>
     </dialog>
 
     <dialog id="showcaseModal" class="modal">
-      <form method="dialog" class="modal-card" id="showcaseForm">
+      <form class="modal-card" id="showcaseForm">
         <div class="modal-header">
           <h3>결과 공유</h3>
-          <button class="icon-button" value="cancel" title="닫기">×</button>
+          <button class="icon-button" type="button" data-close-modal title="닫기">×</button>
         </div>
         <input name="title" placeholder="무엇을 만들었나요?" required />
         <div class="field-grid">
@@ -243,15 +243,15 @@
           <div class="tool-picker" id="showcaseToolPicker"></div>
         </label>
         <textarea name="body" rows="5" placeholder="만든 과정, 배운 점, 받고 싶은 피드백" required></textarea>
-        <button class="primary-button">공유하기</button>
+        <button class="primary-button" type="submit">공유하기</button>
       </form>
     </dialog>
 
     <dialog id="coffeeModal" class="modal">
-      <form method="dialog" class="modal-card">
+      <form class="modal-card">
         <div class="modal-header">
           <h3>커피챗 후보</h3>
-          <button class="icon-button" value="cancel" title="닫기">×</button>
+          <button class="icon-button" type="button" data-close-modal title="닫기">×</button>
         </div>
         <div id="coffeeMatches" class="match-list"></div>
       </form>
