@@ -4,6 +4,8 @@ const authConfig = window.AI_BUILDER_CONFIG || {};
 const authReady = Boolean(authConfig.supabaseUrl && authConfig.supabaseAnonKey && window.supabase);
 const authClient = authReady ? window.supabase.createClient(authConfig.supabaseUrl, authConfig.supabaseAnonKey) : null;
 let currentUser = null;
+let remoteReady = false;
+let realtimeChannel = null;
 
 const seedState = {
   profile: {
@@ -158,6 +160,10 @@ function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
+function saveActiveRoom() {
+  localStorage.setItem(`${storageKey}-active-room`, state.activeRoomId);
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -196,6 +202,90 @@ function applyUserToProfile(user) {
   saveState();
 }
 
+function defaultProfileFromUser(user) {
+  const displayName =
+    user.user_metadata?.user_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "나";
+
+  return {
+    nickname: displayName,
+    goal: "오늘의 목표 미정",
+    category: "Vibe Coding",
+    status: "질문 가능",
+    tools: "Claude Code, GPT"
+  };
+}
+
+function toProfileRow() {
+  return {
+    id: currentUser.id,
+    nickname: state.profile.nickname,
+    goal: state.profile.goal,
+    category: state.profile.category,
+    status: state.profile.status,
+    tools: state.profile.tools,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function fromProfileRow(row) {
+  if (!row) return defaultProfileFromUser(currentUser);
+  return {
+    nickname: row.nickname || "나",
+    goal: row.goal || "오늘의 목표 미정",
+    category: row.category || "Vibe Coding",
+    status: row.status || "질문 가능",
+    tools: row.tools || "도구 미지정"
+  };
+}
+
+function mapHelp(row) {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    title: row.title,
+    category: row.category,
+    type: row.help_type,
+    tools: row.tools,
+    body: row.body,
+    solved: row.solved
+  };
+}
+
+function mapQuestion(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    tools: row.tools,
+    body: row.body,
+    solved: row.solved
+  };
+}
+
+function mapShowcase(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    tools: row.tools,
+    url: row.url,
+    body: row.body
+  };
+}
+
+function mapChat(row) {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    name: row.profiles?.nickname || "익명",
+    text: row.body
+  };
+}
+
 async function signInWithProvider(provider) {
   if (!authClient) {
     showAuth("Supabase 설정이 아직 없습니다. config.js에 supabaseUrl과 supabaseAnonKey를 넣으면 GitHub/Google 로그인이 활성화됩니다.");
@@ -211,7 +301,122 @@ async function signInWithProvider(provider) {
 async function signOut() {
   if (authClient) await authClient.auth.signOut();
   currentUser = null;
+  remoteReady = false;
+  if (realtimeChannel) authClient.removeChannel(realtimeChannel);
   showAuth();
+}
+
+async function upsertProfile() {
+  if (!remoteReady) return;
+  const { error } = await authClient.from("profiles").upsert(toProfileRow());
+  if (error) throw error;
+}
+
+async function joinRoom(roomId = state.activeRoomId) {
+  if (!remoteReady) return;
+  const room = state.rooms.find((item) => item.id === roomId);
+  const occupied = roomBuilders(roomId).filter((builder) => builder.id !== currentUser.id).length;
+  if (room && occupied >= room.limit) {
+    alert("이 방은 정원이 가득 찼습니다. 다른 방을 선택하거나 새 방을 만들어주세요.");
+    return;
+  }
+  const { error } = await authClient.from("room_members").upsert({
+    user_id: currentUser.id,
+    room_id: roomId,
+    updated_at: new Date().toISOString()
+  });
+  if (error) throw error;
+}
+
+async function loadRemoteState() {
+  const [profileRes, roomsRes, membersRes, helpsRes, questionsRes, showcasesRes, chatsRes] = await Promise.all([
+    authClient.from("profiles").select("*").eq("id", currentUser.id).maybeSingle(),
+    authClient.from("rooms").select("*").order("created_at", { ascending: true }),
+    authClient.from("room_members").select("room_id, profiles(id,nickname,goal,category,status,tools)").order("updated_at", { ascending: false }),
+    authClient.from("help_requests").select("*").order("created_at", { ascending: false }),
+    authClient.from("questions").select("*").order("created_at", { ascending: false }),
+    authClient.from("showcases").select("*").order("created_at", { ascending: false }),
+    authClient.from("chats").select("id, room_id, body, created_at, profiles(nickname)").order("created_at", { ascending: true }).limit(80)
+  ]);
+
+  const firstError = [profileRes, roomsRes, membersRes, helpsRes, questionsRes, showcasesRes, chatsRes].find((result) => result.error)?.error;
+  if (firstError) throw firstError;
+
+  state.profile = fromProfileRow(profileRes.data);
+  state.rooms = roomsRes.data.map((room) => ({
+    id: room.id,
+    name: room.name,
+    category: room.category,
+    limit: room.capacity
+  }));
+
+  const savedRoomId = localStorage.getItem(`${storageKey}-active-room`);
+  state.activeRoomId = state.rooms.some((room) => room.id === savedRoomId) ? savedRoomId : state.rooms[0]?.id;
+
+  state.builders = membersRes.data
+    .filter((member) => member.profiles)
+    .map((member) => ({
+      id: member.profiles.id,
+      roomId: member.room_id,
+      name: member.profiles.nickname || "익명",
+      category: member.profiles.category || "Vibe Coding",
+      status: member.profiles.status || "질문 가능",
+      goal: member.profiles.goal || "오늘의 목표 미정",
+      tools: member.profiles.tools || "도구 미지정"
+    }));
+  state.helps = helpsRes.data.map(mapHelp);
+  state.questions = questionsRes.data.map(mapQuestion);
+  state.showcases = showcasesRes.data.map(mapShowcase);
+  state.chats = chatsRes.data.map(mapChat);
+
+  await upsertProfile();
+  if (!state.builders.some((builder) => builder.id === currentUser.id)) {
+    await joinRoom(state.activeRoomId);
+    updateMyBuilder();
+  }
+}
+
+function subscribeRemoteChanges() {
+  if (!remoteReady || realtimeChannel) return;
+  realtimeChannel = authClient
+    .channel("ai-builder-room-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "room_members" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "help_requests" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "showcases" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, refreshRemote)
+    .subscribe();
+}
+
+let refreshTimer = null;
+function refreshRemote() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    try {
+      await loadRemoteState();
+      renderAll();
+    } catch (error) {
+      console.error(error);
+    }
+  }, 250);
+}
+
+async function bootAppForUser(user) {
+  currentUser = user;
+  try {
+    remoteReady = true;
+    await loadRemoteState();
+    subscribeRemoteChanges();
+  } catch (error) {
+    remoteReady = false;
+    console.error(error);
+    applyUserToProfile(user);
+    alert("Supabase DB 테이블이 아직 준비되지 않았습니다. README의 SQL 스키마를 먼저 실행해주세요.");
+  }
+  showApp();
+  renderAll();
 }
 
 async function initAuth() {
@@ -226,23 +431,21 @@ async function initAuth() {
     return;
   }
 
-  currentUser = data.session?.user || null;
-  if (!currentUser) {
+  const user = data.session?.user || null;
+  if (!user) {
     showAuth();
     return;
   }
 
-  applyUserToProfile(currentUser);
-  showApp();
-  renderAll();
+  await bootAppForUser(user);
 
   authClient.auth.onAuthStateChange((_event, session) => {
-    currentUser = session?.user || null;
-    if (currentUser) {
-      applyUserToProfile(currentUser);
-      showApp();
-      renderAll();
+    const nextUser = session?.user || null;
+    if (nextUser) {
+      bootAppForUser(nextUser);
     } else {
+      currentUser = null;
+      remoteReady = false;
       showAuth();
     }
   });
@@ -453,10 +656,15 @@ function renderAll() {
 }
 
 function updateMyBuilder() {
-  const me = state.builders.find((builder) => builder.id === "me");
+  const myId = currentUser?.id || "me";
+  let me = state.builders.find((builder) => builder.id === myId);
   const room = activeRoom();
+  if (!me) {
+    me = { id: myId };
+    state.builders.push(me);
+  }
   Object.assign(me, {
-    roomId: room.id,
+    roomId: room?.id || state.activeRoomId,
     name: state.profile.nickname || "나",
     category: state.profile.category,
     status: state.profile.status,
@@ -468,10 +676,18 @@ function updateMyBuilder() {
 document.addEventListener("click", (event) => {
   const roomButton = event.target.closest("[data-room-id]");
   if (roomButton) {
-    state.activeRoomId = roomButton.dataset.roomId;
-    updateMyBuilder();
-    saveState();
-    renderAll();
+    const nextRoomId = roomButton.dataset.roomId;
+    state.activeRoomId = nextRoomId;
+    saveActiveRoom();
+    if (remoteReady) {
+      joinRoom(nextRoomId)
+        .then(refreshRemote)
+        .catch((error) => alert(error.message));
+    } else {
+      updateMyBuilder();
+      saveState();
+      renderAll();
+    }
   }
 
   const modalButton = event.target.closest("[data-open-modal]");
@@ -491,7 +707,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
-byId("saveProfile").addEventListener("click", () => {
+byId("saveProfile").addEventListener("click", async () => {
   state.profile = {
     nickname: byId("nicknameInput").value.trim() || "나",
     goal: byId("goalInput").value.trim() || "오늘의 목표 미정",
@@ -500,11 +716,21 @@ byId("saveProfile").addEventListener("click", () => {
     tools: byId("toolsInput").value.trim() || "도구 미지정"
   };
   updateMyBuilder();
-  saveState();
-  renderAll();
+  try {
+    if (remoteReady) {
+      await upsertProfile();
+      await joinRoom(state.activeRoomId);
+      await loadRemoteState();
+    } else {
+      saveState();
+    }
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-byId("createRoom").addEventListener("click", () => {
+byId("createRoom").addEventListener("click", async () => {
   const category = state.profile.category;
   const number = state.rooms.filter((room) => room.category === category).length + 1;
   const room = {
@@ -513,75 +739,158 @@ byId("createRoom").addEventListener("click", () => {
     category,
     limit: category === "Prompt / Workflow" ? 12 : 8
   };
-  state.rooms.push(room);
-  state.activeRoomId = room.id;
-  updateMyBuilder();
-  saveState();
-  renderAll();
+  try {
+    if (remoteReady) {
+      const { data, error } = await authClient
+        .from("rooms")
+        .insert({ name: room.name, category: room.category, capacity: room.limit, created_by: currentUser.id })
+        .select()
+        .single();
+      if (error) throw error;
+      state.activeRoomId = data.id;
+      saveActiveRoom();
+      await joinRoom(data.id);
+      await loadRemoteState();
+    } else {
+      state.rooms.push(room);
+      state.activeRoomId = room.id;
+      updateMyBuilder();
+      saveState();
+    }
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-byId("chatForm").addEventListener("submit", (event) => {
+byId("chatForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = byId("chatInput");
   const text = input.value.trim();
   if (!text) return;
-  state.chats.push({ id: `c-${Date.now()}`, roomId: state.activeRoomId, name: state.profile.nickname || "나", text });
-  input.value = "";
-  saveState();
-  renderChats();
+  try {
+    if (remoteReady) {
+      const { error } = await authClient.from("chats").insert({
+        room_id: state.activeRoomId,
+        user_id: currentUser.id,
+        body: text
+      });
+      if (error) throw error;
+      await loadRemoteState();
+      renderAll();
+    } else {
+      state.chats.push({ id: `c-${Date.now()}`, roomId: state.activeRoomId, name: state.profile.nickname || "나", text });
+      saveState();
+      renderChats();
+    }
+    input.value = "";
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-byId("helpForm").addEventListener("submit", (event) => {
+byId("helpForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  state.helps.unshift({
-    id: `h-${Date.now()}`,
-    roomId: state.activeRoomId,
-    title: data.get("title"),
-    category: data.get("category"),
-    type: data.get("type"),
-    tools: data.get("tools"),
-    body: data.get("body"),
-    solved: false
-  });
-  event.currentTarget.reset();
-  event.currentTarget.closest("dialog").close();
-  saveState();
-  renderAll();
+  try {
+    if (remoteReady) {
+      const { error } = await authClient.from("help_requests").insert({
+        room_id: state.activeRoomId,
+        user_id: currentUser.id,
+        title: data.get("title"),
+        category: data.get("category"),
+        help_type: data.get("type"),
+        tools: data.get("tools"),
+        body: data.get("body")
+      });
+      if (error) throw error;
+      await loadRemoteState();
+    } else {
+      state.helps.unshift({
+        id: `h-${Date.now()}`,
+        roomId: state.activeRoomId,
+        title: data.get("title"),
+        category: data.get("category"),
+        type: data.get("type"),
+        tools: data.get("tools"),
+        body: data.get("body"),
+        solved: false
+      });
+      saveState();
+    }
+    event.currentTarget.reset();
+    event.currentTarget.closest("dialog").close();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-byId("questionForm").addEventListener("submit", (event) => {
+byId("questionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  state.questions.unshift({
-    id: `q-${Date.now()}`,
-    title: data.get("title"),
-    category: data.get("category"),
-    tools: data.get("tools"),
-    body: data.get("body"),
-    solved: false
-  });
-  event.currentTarget.reset();
-  event.currentTarget.closest("dialog").close();
-  saveState();
-  renderAll();
+  try {
+    if (remoteReady) {
+      const { error } = await authClient.from("questions").insert({
+        user_id: currentUser.id,
+        title: data.get("title"),
+        category: data.get("category"),
+        tools: data.get("tools"),
+        body: data.get("body")
+      });
+      if (error) throw error;
+      await loadRemoteState();
+    } else {
+      state.questions.unshift({
+        id: `q-${Date.now()}`,
+        title: data.get("title"),
+        category: data.get("category"),
+        tools: data.get("tools"),
+        body: data.get("body"),
+        solved: false
+      });
+      saveState();
+    }
+    event.currentTarget.reset();
+    event.currentTarget.closest("dialog").close();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-byId("showcaseForm").addEventListener("submit", (event) => {
+byId("showcaseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  state.showcases.unshift({
-    id: `s-${Date.now()}`,
-    title: data.get("title"),
-    category: data.get("category"),
-    tools: data.get("tools"),
-    url: data.get("url"),
-    body: data.get("body")
-  });
-  event.currentTarget.reset();
-  event.currentTarget.closest("dialog").close();
-  saveState();
-  renderAll();
+  try {
+    if (remoteReady) {
+      const { error } = await authClient.from("showcases").insert({
+        user_id: currentUser.id,
+        title: data.get("title"),
+        category: data.get("category"),
+        tools: data.get("tools"),
+        url: data.get("url"),
+        body: data.get("body")
+      });
+      if (error) throw error;
+      await loadRemoteState();
+    } else {
+      state.showcases.unshift({
+        id: `s-${Date.now()}`,
+        title: data.get("title"),
+        category: data.get("category"),
+        tools: data.get("tools"),
+        url: data.get("url"),
+        body: data.get("body")
+      });
+      saveState();
+    }
+    event.currentTarget.reset();
+    event.currentTarget.closest("dialog").close();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 byId("resetDemo").addEventListener("click", () => {
