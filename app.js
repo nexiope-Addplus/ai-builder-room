@@ -168,6 +168,12 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+function setProfileSaveNote(message, isError = false) {
+  const note = byId("profileSaveNote");
+  note.textContent = message;
+  note.classList.toggle("error", isError);
+}
+
 function showAuth(message) {
   byId("authScreen").classList.remove("is-hidden");
   byId("appShell").classList.add("is-hidden");
@@ -320,7 +326,10 @@ async function signOut() {
   if (authClient) await authClient.auth.signOut();
   currentUser = null;
   remoteReady = false;
-  if (realtimeChannel) authClient.removeChannel(realtimeChannel);
+  if (realtimeChannel) {
+    authClient.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
   showAuth();
 }
 
@@ -386,12 +395,6 @@ async function loadRemoteState() {
   state.questions = questionsRes.data.map(mapQuestion);
   state.showcases = showcasesRes.data.map(mapShowcase);
   state.chats = chatsRes.data.map(mapChat);
-
-  await upsertProfile();
-  if (!state.builders.some((builder) => builder.id === currentUser.id)) {
-    await joinRoom(state.activeRoomId);
-    updateMyBuilder();
-  }
 }
 
 function subscribeRemoteChanges() {
@@ -426,6 +429,12 @@ async function bootAppForUser(user) {
   try {
     remoteReady = true;
     await loadRemoteState();
+    await upsertProfile();
+    if (!state.builders.some((builder) => builder.id === currentUser.id)) {
+      await joinRoom(state.activeRoomId);
+      updateMyBuilder();
+      await loadRemoteState();
+    }
     subscribeRemoteChanges();
   } catch (error) {
     remoteReady = false;
@@ -494,7 +503,8 @@ function roomBuilders(roomId = state.activeRoomId) {
   return state.builders.filter((builder) => builder.roomId === roomId);
 }
 
-function syncProfileInputs() {
+function syncProfileInputs(force = false) {
+  if (!force && document.activeElement?.closest(".profile-panel")) return;
   byId("nicknameInput").value = state.profile.nickname;
   byId("goalInput").value = state.profile.goal;
   fillSelect(byId("categoryInput"), categories, state.profile.category);
@@ -661,8 +671,8 @@ function renderMetrics() {
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
 }
 
-function renderAll() {
-  syncProfileInputs();
+function renderAll(options = {}) {
+  syncProfileInputs(Boolean(options.forceProfileSync));
   renderRooms();
   renderBuilders();
   renderHelp();
@@ -726,6 +736,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 byId("saveProfile").addEventListener("click", async () => {
+  const saveButton = byId("saveProfile");
+  saveButton.disabled = true;
+  saveButton.textContent = "저장 중...";
+  setProfileSaveNote("");
   state.profile = {
     nickname: byId("nicknameInput").value.trim() || "나",
     goal: byId("goalInput").value.trim() || "오늘의 목표 미정",
@@ -742,9 +756,13 @@ byId("saveProfile").addEventListener("click", async () => {
     } else {
       saveState();
     }
-    renderAll();
+    renderAll({ forceProfileSync: true });
+    setProfileSaveNote("저장됐습니다.");
   } catch (error) {
-    alert(error.message);
+    setProfileSaveNote(error.message, true);
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = "상태 저장";
   }
 });
 

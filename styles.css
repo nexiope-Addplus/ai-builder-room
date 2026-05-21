@@ -116,6 +116,17 @@ button {
   display: block;
 }
 
+.save-note {
+  min-height: 18px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.save-note.error {
+  color: #9b3f2f;
+}
+
 .sidebar,
 .workspace {
   min-width: 0;
@@ -274,6 +285,12 @@ textarea:focus {
 .tab:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(37, 44, 47, 0.1);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
 }
 
 .metrics {
