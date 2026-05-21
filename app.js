@@ -1007,7 +1007,8 @@ byId("chatForm").addEventListener("submit", async (event) => {
 
 byId("helpForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const data = new FormData(form);
   try {
     if (remoteReady) {
       const { error } = await authClient.from("help_requests").insert({
@@ -1034,8 +1035,9 @@ byId("helpForm").addEventListener("submit", async (event) => {
       });
       saveState();
     }
-    event.currentTarget.reset();
-    event.currentTarget.closest("dialog").close();
+    form.reset();
+    form.closest("dialog")?.close();
+    syncModalToolPickers();
     renderAll();
   } catch (error) {
     alert(error.message);
@@ -1044,7 +1046,8 @@ byId("helpForm").addEventListener("submit", async (event) => {
 
 byId("questionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const data = new FormData(form);
   try {
     if (remoteReady) {
       const { error } = await authClient.from("questions").insert({
@@ -1067,8 +1070,9 @@ byId("questionForm").addEventListener("submit", async (event) => {
       });
       saveState();
     }
-    event.currentTarget.reset();
-    event.currentTarget.closest("dialog").close();
+    form.reset();
+    form.closest("dialog")?.close();
+    syncModalToolPickers();
     renderAll();
   } catch (error) {
     alert(error.message);
@@ -1077,7 +1081,8 @@ byId("questionForm").addEventListener("submit", async (event) => {
 
 byId("showcaseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const data = new FormData(form);
   try {
     if (remoteReady) {
       const { error } = await authClient.from("showcases").insert({
@@ -1101,8 +1106,9 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
       });
       saveState();
     }
-    event.currentTarget.reset();
-    event.currentTarget.closest("dialog").close();
+    form.reset();
+    form.closest("dialog")?.close();
+    syncModalToolPickers();
     renderAll();
   } catch (error) {
     alert(error.message);
