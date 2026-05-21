@@ -1,5 +1,9 @@
 const categories = ["Vibe Coding", "App Building", "Design", "Automation", "Prompt / Workflow", "Showcase"];
 const statuses = ["집중 중", "질문 가능", "도움 필요", "커피챗 가능", "쉬는 중", "데모 준비 중"];
+const authConfig = window.AI_BUILDER_CONFIG || {};
+const authReady = Boolean(authConfig.supabaseUrl && authConfig.supabaseAnonKey && window.supabase);
+const authClient = authReady ? window.supabase.createClient(authConfig.supabaseUrl, authConfig.supabaseAnonKey) : null;
+let currentUser = null;
 
 const seedState = {
   profile: {
@@ -156,6 +160,92 @@ function saveState() {
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function showAuth(message) {
+  byId("authScreen").classList.remove("is-hidden");
+  byId("appShell").classList.add("is-hidden");
+  const warning = byId("authWarning");
+  if (message) {
+    warning.textContent = message;
+    warning.classList.add("active");
+  } else {
+    warning.textContent = "";
+    warning.classList.remove("active");
+  }
+}
+
+function showApp() {
+  byId("authScreen").classList.add("is-hidden");
+  byId("appShell").classList.remove("is-hidden");
+}
+
+function applyUserToProfile(user) {
+  if (!user) return;
+  const displayName =
+    user.user_metadata?.user_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "나";
+
+  if (!state.profile.nickname || state.profile.nickname === "나") {
+    state.profile.nickname = displayName;
+  }
+  updateMyBuilder();
+  saveState();
+}
+
+async function signInWithProvider(provider) {
+  if (!authClient) {
+    showAuth("Supabase 설정이 아직 없습니다. config.js에 supabaseUrl과 supabaseAnonKey를 넣으면 GitHub/Google 로그인이 활성화됩니다.");
+    return;
+  }
+  const { error } = await authClient.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: authConfig.redirectTo || window.location.origin }
+  });
+  if (error) showAuth(error.message);
+}
+
+async function signOut() {
+  if (authClient) await authClient.auth.signOut();
+  currentUser = null;
+  showAuth();
+}
+
+async function initAuth() {
+  if (!authReady) {
+    showAuth("로그인 화면은 준비됐지만 Supabase 연결값이 비어 있습니다. 실제 사용자 인증을 쓰려면 config.js 설정이 필요합니다.");
+    return;
+  }
+
+  const { data, error } = await authClient.auth.getSession();
+  if (error) {
+    showAuth(error.message);
+    return;
+  }
+
+  currentUser = data.session?.user || null;
+  if (!currentUser) {
+    showAuth();
+    return;
+  }
+
+  applyUserToProfile(currentUser);
+  showApp();
+  renderAll();
+
+  authClient.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    if (currentUser) {
+      applyUserToProfile(currentUser);
+      showApp();
+      renderAll();
+    } else {
+      showAuth();
+    }
+  });
 }
 
 function fillSelect(select, options, value) {
@@ -496,8 +586,13 @@ byId("showcaseForm").addEventListener("submit", (event) => {
 
 byId("resetDemo").addEventListener("click", () => {
   state = structuredClone(seedState);
+  if (currentUser) applyUserToProfile(currentUser);
   saveState();
   renderAll();
 });
 
-renderAll();
+byId("githubLogin").addEventListener("click", () => signInWithProvider("github"));
+byId("googleLogin").addEventListener("click", () => signInWithProvider("google"));
+byId("signOut").addEventListener("click", signOut);
+
+initAuth();

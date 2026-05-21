@@ -27,6 +27,10 @@ body {
   color: var(--ink);
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 button,
 input,
 select,
@@ -44,6 +48,62 @@ button {
   gap: 20px;
   min-height: 100vh;
   padding: 20px;
+}
+
+.auth-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 20px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 22px;
+  width: min(560px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 242, 0.94);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.auth-copy h2,
+.auth-copy p {
+  margin: 0;
+}
+
+.auth-copy h2 {
+  margin-top: 6px;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.auth-copy p:last-child {
+  margin-top: 10px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.auth-warning {
+  display: none;
+  border: 1px solid rgba(201, 129, 94, 0.4);
+  border-radius: 8px;
+  background: rgba(201, 129, 94, 0.11);
+  color: #74452e;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.auth-warning.active {
+  display: block;
 }
 
 .sidebar,
@@ -576,6 +636,7 @@ textarea:focus {
   }
 
   .topbar-actions,
+  .auth-actions,
   .field-grid,
   .room-bottom,
   .builder-grid,
