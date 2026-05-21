@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 작업실 픽셀 좌석 목업</title>
+    <style>
+      :root {
+        --ink: #1e2528;
+        --paper: #fff8eb;
+        --line: #d8cbbb;
+        --muted: #68757a;
+        --blue: #315f72;
+        --green: #4a7c6e;
+        --coral: #c9815e;
+        --yellow: #f0c75c;
+        --dark: #202830;
+        --tile: 24px;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #efe9dc;
+        color: var(--ink);
+      }
+
+      button {
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .page {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr) 340px;
+        gap: 16px;
+        min-height: 100vh;
+        padding: 16px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 248, 235, 0.94);
+        box-shadow: 0 16px 36px rgba(32, 40, 48, 0.12);
+      }
+
+      .left,
+      .right {
+        padding: 16px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .logo {
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        image-rendering: pixelated;
+        background:
+          linear-gradient(90deg, transparent 8px, var(--yellow) 8px 16px, transparent 16px),
+          linear-gradient(var(--ink) 0 0);
+        color: var(--ink);
+        font-weight: 900;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .tabs {
+        display: grid;
+        gap: 8px;
+        margin: 18px 0;
+      }
+
+      .tab {
+        display: flex;
+        justify-content: space-between;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 11px 12px;
+        color: var(--ink);
+        font-weight: 900;
+        text-align: left;
+      }
+
+      .tab.active {
+        border-color: var(--blue);
+        background: rgba(49, 95, 114, 0.1);
+        box-shadow: inset 4px 0 0 var(--blue);
+      }
+
+      .level-card,
+      .legend,
+      .profile-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+        margin-top: 12px;
+      }
+
+      .level-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .level-row strong {
+        font-size: 28px;
+      }
+
+      .bar {
+        height: 10px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(49, 95, 114, 0.14);
+        margin: 10px 0 7px;
+      }
+
+      .bar span {
+        display: block;
+        width: 46%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--green), var(--yellow), var(--coral));
+      }
+
+      .legend-grid {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .stage {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      .stage-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+        padding: 16px 18px;
+      }
+
+      .stage-head h2 {
+        font-size: 24px;
+      }
+
+      .room-meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        border-radius: 999px;
+        background: rgba(49, 95, 114, 0.1);
+        color: var(--blue);
+        padding: 6px 9px;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .pixel-wrap {
+        display: grid;
+        place-items: center;
+        min-height: 640px;
+        padding: 20px;
+        background:
+          linear-gradient(90deg, rgba(30, 37, 40, 0.05) 1px, transparent 1px),
+          linear-gradient(rgba(30, 37, 40, 0.05) 1px, transparent 1px),
+          #ece2d2;
+        background-size: var(--tile) var(--tile);
+      }
+
+      .pixel-room {
+        position: relative;
+        width: min(100%, 820px);
+        aspect-ratio: 16 / 11;
+        border: 8px solid #6b5540;
+        background: #d7bd93;
+        image-rendering: pixelated;
+        box-shadow: 0 18px 0 rgba(78, 58, 39, 0.24);
+      }
+
+      .pixel-room::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+        background-size: 32px 32px;
+        pointer-events: none;
+      }
+
+      .window {
+        position: absolute;
+        top: 22px;
+        width: 108px;
+        height: 38px;
+        border: 5px solid #715a42;
+        background: linear-gradient(#9ecbd1 0 50%, #e8d889 50%);
+      }
+
+      .window.one {
+        left: 64px;
+      }
+
+      .window.two {
+        right: 64px;
+      }
+
+      .plant,
+      .coffee-zone,
+      .help-desk,
+      .whiteboard {
+        position: absolute;
+        border: 4px solid rgba(30, 37, 40, 0.35);
+        background: rgba(255, 248, 235, 0.7);
+      }
+
+      .plant {
+        bottom: 28px;
+        left: 26px;
+        width: 46px;
+        height: 46px;
+        background: linear-gradient(135deg, #4a7c6e 0 55%, #715a42 55%);
+      }
+
+      .coffee-zone {
+        right: 28px;
+        bottom: 30px;
+        width: 108px;
+        height: 64px;
+      }
+
+      .coffee-zone::after {
+        content: "coffee";
+        position: absolute;
+        inset: 18px 0 0;
+        color: #735239;
+        font-size: 11px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      .help-desk {
+        right: 34px;
+        top: 88px;
+        width: 120px;
+        height: 58px;
+        background: #f1c75b;
+      }
+
+      .help-desk::after {
+        content: "HELP";
+        display: grid;
+        place-items: center;
+        height: 100%;
+        color: #6d4d23;
+        font-size: 16px;
+        font-weight: 900;
+      }
+
+      .whiteboard {
+        left: 50%;
+        top: 74px;
+        width: 150px;
+        height: 52px;
+        transform: translateX(-50%);
+        background: #eef6f3;
+      }
+
+      .seat {
+        position: absolute;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        width: 112px;
+        height: 112px;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        color: var(--ink);
+      }
+
+      .seat-label {
+        width: fit-content;
+        border: 3px solid #574433;
+        background: #fff8eb;
+        padding: 2px 6px;
+        font-size: 12px;
+        font-weight: 900;
+        transform: translateY(3px);
+        z-index: 2;
+      }
+
+      .desk {
+        position: relative;
+        border: 5px solid #574433;
+        background: #b8875b;
+        box-shadow: inset 0 -10px 0 rgba(70, 46, 26, 0.15);
+      }
+
+      .partition {
+        position: absolute;
+        top: -9px;
+        left: 12px;
+        right: 12px;
+        height: 12px;
+        background: #7a6046;
+      }
+
+      .laptop {
+        position: absolute;
+        left: 33px;
+        top: 22px;
+        width: 44px;
+        height: 28px;
+        border: 4px solid #263238;
+        background: #7fc8e6;
+      }
+
+      .chair {
+        position: absolute;
+        left: 36px;
+        bottom: -12px;
+        width: 40px;
+        height: 26px;
+        border: 4px solid #3d3b37;
+        background: #315f72;
+      }
+
+      .avatar {
+        position: absolute;
+        left: 42px;
+        bottom: 12px;
+        width: 28px;
+        height: 34px;
+        border: 4px solid #263238;
+        background: #f1c75b;
+      }
+
+      .avatar::before {
+        content: "";
+        position: absolute;
+        left: 4px;
+        top: -15px;
+        width: 12px;
+        height: 12px;
+        border: 4px solid #263238;
+        background: #f3c6a7;
+      }
+
+      .status {
+        position: absolute;
+        right: -5px;
+        top: -7px;
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border: 3px solid #263238;
+        background: #fff;
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .seat.empty .avatar,
+      .seat.empty .status {
+        display: none;
+      }
+
+      .seat.empty .desk {
+        opacity: 0.65;
+        filter: grayscale(0.3);
+      }
+
+      .seat.selected .desk {
+        outline: 5px solid var(--yellow);
+      }
+
+      .seat.help .status {
+        background: #e9694c;
+        color: #fff;
+      }
+
+      .seat.coffee .status {
+        background: #fff1c0;
+      }
+
+      .seat.focus .status {
+        background: #c8dfd8;
+      }
+
+      .seat.design .laptop {
+        background: #eab1c6;
+      }
+
+      .seat.automation .laptop {
+        background: #9fd0a8;
+      }
+
+      .seat-a1 { left: 72px; top: 112px; }
+      .seat-a2 { left: 210px; top: 112px; }
+      .seat-a3 { left: 72px; top: 272px; }
+      .seat-a4 { left: 210px; top: 272px; }
+      .seat-b1 { left: 408px; top: 154px; }
+      .seat-b2 { left: 546px; top: 154px; }
+      .seat-b3 { left: 408px; top: 314px; }
+      .seat-b4 { left: 546px; top: 314px; }
+
+      .variant-studio .pixel-room {
+        background: #c6d1c6;
+        border-color: #41534c;
+      }
+
+      .variant-studio .desk {
+        background: #7f9b8c;
+      }
+
+      .variant-studio .partition {
+        background: #51675e;
+      }
+
+      .variant-night .pixel-wrap {
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          #1e252d;
+      }
+
+      .variant-night .pixel-room {
+        background: #303846;
+        border-color: #151a20;
+      }
+
+      .variant-night .desk {
+        background: #5b6075;
+        border-color: #1b2028;
+      }
+
+      .variant-night .partition {
+        background: #242b35;
+      }
+
+      .variant-night .seat-label,
+      .variant-night .right,
+      .variant-night .left {
+        color: var(--ink);
+      }
+
+      .right h3 {
+        margin-bottom: 10px;
+      }
+
+      .seat-detail {
+        display: grid;
+        gap: 12px;
+      }
+
+      .seat-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .seat-title strong {
+        font-size: 24px;
+      }
+
+      .detail-block {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+      }
+
+      .detail-block h4 {
+        margin: 0 0 7px;
+        font-size: 14px;
+      }
+
+      .action-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .primary,
+      .secondary {
+        min-height: 40px;
+        border-radius: 8px;
+        border: 0;
+        font-weight: 900;
+      }
+
+      .primary {
+        background: var(--ink);
+        color: white;
+      }
+
+      .secondary {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+      }
+
+      .feed {
+        display: grid;
+        gap: 8px;
+      }
+
+      .feed-item {
+        border-left: 4px solid var(--blue);
+        background: #fff;
+        padding: 9px 10px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      @media (max-width: 1100px) {
+        .page {
+          grid-template-columns: 1fr;
+        }
+
+        .pixel-wrap {
+          overflow-x: auto;
+          justify-content: start;
+        }
+
+        .pixel-room {
+          min-width: 760px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page variant-library" id="page">
+      <aside class="panel left">
+        <div class="brand">
+          <div class="logo">AI</div>
+          <div>
+            <h1>AI 작업실</h1>
+            <p class="muted">픽셀 좌석형 목업</p>
+          </div>
+        </div>
+
+        <p class="muted">좌석 번호를 직접 고르는 8석 작업실입니다. 자동 배치보다 “내 자리” 감각을 우선합니다.</p>
+
+        <div class="tabs">
+          <button class="tab active" data-variant="library">Pixel Library Desk <span>추천</span></button>
+          <button class="tab" data-variant="studio">AI Builder Studio <span>작업실</span></button>
+          <button class="tab" data-variant="night">Cozy Cyber Study <span>야간</span></button>
+        </div>
+
+        <div class="level-card">
+          <div class="level-row">
+            <strong>Lv. 12</strong>
+            <span class="pill">Active Builder</span>
+          </div>
+          <div class="bar"><span></span></div>
+          <p class="muted">1,240 XP · 다음 레벨까지 160 XP</p>
+        </div>
+
+        <div class="legend">
+          <strong>상태 아이콘</strong>
+          <div class="legend-grid">
+            <div class="legend-item"><span>집중 중</span><span>◐</span></div>
+            <div class="legend-item"><span>도움 필요</span><span>!</span></div>
+            <div class="legend-item"><span>커피챗 가능</span><span>☕</span></div>
+            <div class="legend-item"><span>빈 자리</span><span>A3</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel stage">
+        <header class="stage-head">
+          <div>
+            <h2 id="variantTitle">Pixel Library Desk</h2>
+            <p class="muted" id="variantCopy">칸막이 독서실 기반의 가장 직관적인 AI 작업실</p>
+          </div>
+          <div class="room-meta">
+            <span class="pill">8석</span>
+            <span class="pill">좌석 선택</span>
+            <span class="pill">Vibe Coding</span>
+          </div>
+        </header>
+
+        <div class="pixel-wrap">
+          <div class="pixel-room" aria-label="픽셀 좌석 맵">
+            <div class="window one"></div>
+            <div class="window two"></div>
+            <div class="whiteboard"></div>
+            <div class="help-desk"></div>
+            <div class="plant"></div>
+            <div class="coffee-zone"></div>
+
+            <button class="seat seat-a1 focus selected" data-seat="A1" data-name="Sangwan" data-role="Vibe Coding" data-status="집중 중" data-tools="Claude Code, Cursor" data-goal="픽셀 좌석형 작업실 디자인 목업 만들기" data-seat-name="창가 집중석">
+              <span class="seat-label">A1</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="avatar"></span><span class="chair"></span><span class="status">◐</span></span>
+            </button>
+
+            <button class="seat seat-a2 help" data-seat="A2" data-name="Mina" data-role="App Building" data-status="도움 필요" data-tools="Bolt, Supabase" data-goal="로그인 콜백이 깨져서 도움 요청 중" data-seat-name="도움요청 근처석">
+              <span class="seat-label">A2</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="avatar"></span><span class="chair"></span><span class="status">!</span></span>
+            </button>
+
+            <button class="seat seat-a3 empty" data-seat="A3" data-name="빈 자리" data-role="추천 좌석" data-status="선택 가능" data-tools="-" data-goal="조용한 구석 집중석입니다." data-seat-name="구석 집중석">
+              <span class="seat-label">A3</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="chair"></span></span>
+            </button>
+
+            <button class="seat seat-a4 design coffee" data-seat="A4" data-name="Leo" data-role="Design" data-status="커피챗 가능" data-tools="Figma, v0" data-goal="AI SaaS 대시보드 컴포넌트 정리" data-seat-name="디자인 피드백석">
+              <span class="seat-label">A4</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="avatar"></span><span class="chair"></span><span class="status">☕</span></span>
+            </button>
+
+            <button class="seat seat-b1 automation focus" data-seat="B1" data-name="Hana" data-role="Automation" data-status="집중 중" data-tools="n8n, Gmail, Notion" data-goal="문의 자동 분류 워크플로우 제작" data-seat-name="자동화 빌드석">
+              <span class="seat-label">B1</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="avatar"></span><span class="chair"></span><span class="status">◐</span></span>
+            </button>
+
+            <button class="seat seat-b2 coffee" data-seat="B2" data-name="Chris" data-role="Prompt / Workflow" data-status="커피챗 가능" data-tools="Codex, Gemini" data-goal="에이전트 작업 분해 템플릿 실험" data-seat-name="커피챗 가까운 자리">
+              <span class="seat-label">B2</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="avatar"></span><span class="chair"></span><span class="status">☕</span></span>
+            </button>
+
+            <button class="seat seat-b3 empty" data-seat="B3" data-name="빈 자리" data-role="추천 좌석" data-status="선택 가능" data-tools="-" data-goal="중앙 빌드석입니다. 다른 작업자가 잘 보입니다." data-seat-name="중앙 빌드석">
+              <span class="seat-label">B3</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="chair"></span></span>
+            </button>
+
+            <button class="seat seat-b4 empty" data-seat="B4" data-name="빈 자리" data-role="추천 좌석" data-status="선택 가능" data-tools="-" data-goal="커피챗 존과 가까운 열린 자리입니다." data-seat-name="라운지 근처석">
+              <span class="seat-label">B4</span>
+              <span class="desk"><span class="partition"></span><span class="laptop"></span><span class="chair"></span></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel right">
+        <div class="seat-detail">
+          <div class="seat-title">
+            <div>
+              <p class="muted" id="seatName">창가 집중석</p>
+              <strong id="seatId">A1</strong>
+            </div>
+            <span class="pill" id="seatStatus">집중 중</span>
+          </div>
+
+          <div class="detail-block">
+            <h4 id="userName">Sangwan</h4>
+            <p class="muted" id="userGoal">픽셀 좌석형 작업실 디자인 목업 만들기</p>
+          </div>
+
+          <div class="detail-block">
+            <h4>사용 도구</h4>
+            <p class="muted" id="userTools">Claude Code, Cursor</p>
+          </div>
+
+          <div class="action-grid">
+            <button class="primary" id="sitButton">이 자리에 앉기</button>
+            <button class="secondary">커피챗 요청</button>
+            <button class="secondary">도움 보기</button>
+            <button class="secondary">프로필 보기</button>
+          </div>
+
+          <div class="detail-block">
+            <h4>방 이벤트</h4>
+            <div class="feed">
+              <div class="feed-item">Mina님이 A2에서 도움 요청을 올렸습니다.</div>
+              <div class="feed-item">Leo님이 A4에서 커피챗 가능 상태입니다.</div>
+              <div class="feed-item">B3 중앙 빌드석이 비어 있습니다.</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const page = document.getElementById("page");
+      const variants = {
+        library: {
+          title: "Pixel Library Desk",
+          copy: "칸막이 독서실 기반의 가장 직관적인 AI 작업실"
+        },
+        studio: {
+          title: "AI Builder Studio",
+          copy: "메이커스페이스 느낌을 더한 생산적인 작업실"
+        },
+        night: {
+          title: "Cozy Cyber Study",
+          copy: "야간 집중과 조용한 동료감을 강조한 픽셀 룸"
+        }
+      };
+
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+          tab.classList.add("active");
+          page.className = `page variant-${tab.dataset.variant}`;
+          document.getElementById("variantTitle").textContent = variants[tab.dataset.variant].title;
+          document.getElementById("variantCopy").textContent = variants[tab.dataset.variant].copy;
+        });
+      });
+
+      document.querySelectorAll(".seat").forEach((seat) => {
+        seat.addEventListener("click", () => {
+          document.querySelectorAll(".seat").forEach((item) => item.classList.remove("selected"));
+          seat.classList.add("selected");
+          document.getElementById("seatName").textContent = seat.dataset.seatName;
+          document.getElementById("seatId").textContent = seat.dataset.seat;
+          document.getElementById("seatStatus").textContent = seat.dataset.status;
+          document.getElementById("userName").textContent = seat.dataset.name;
+          document.getElementById("userGoal").textContent = seat.dataset.goal;
+          document.getElementById("userTools").textContent = seat.dataset.tools;
+          document.getElementById("sitButton").textContent = seat.classList.contains("empty") ? "이 자리에 앉기" : "자리 정보 보기";
+        });
+      });
+    </script>
+  </body>
+</html>
