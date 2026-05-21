@@ -316,6 +316,7 @@ function mapQuestion(row) {
 function mapShowcase(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     title: row.title,
     category: row.category,
     tools: row.tools,
@@ -328,6 +329,7 @@ function mapChat(row) {
   return {
     id: row.id,
     roomId: row.room_id,
+    userId: row.user_id,
     name: row.profiles?.nickname || "익명",
     text: row.body
   };
@@ -578,6 +580,74 @@ function initials(name) {
   return name.trim().slice(0, 2).toUpperCase() || "AI";
 }
 
+function levelFromXp(xp) {
+  let level = 1;
+  let spent = 0;
+  while (level < 100) {
+    const needed = xpForNextLevel(level);
+    if (xp < spent + needed) break;
+    spent += needed;
+    level += 1;
+  }
+  const next = level >= 100 ? 0 : xpForNextLevel(level);
+  const intoLevel = level >= 100 ? 0 : Math.max(0, xp - spent);
+  return {
+    level,
+    intoLevel,
+    next,
+    progress: level >= 100 ? 100 : Math.min(100, Math.round((intoLevel / next) * 100))
+  };
+}
+
+function xpForNextLevel(level) {
+  return 80 + level * 20;
+}
+
+function titleForLevel(level) {
+  if (level >= 90) return "Studio Legend";
+  if (level >= 75) return "AI Mentor";
+  if (level >= 60) return "Workflow Architect";
+  if (level >= 45) return "Problem Solver";
+  if (level >= 30) return "Ship Maker";
+  if (level >= 15) return "Active Builder";
+  if (level >= 5) return "Rising Builder";
+  return "New Builder";
+}
+
+function calculateBuilderXp() {
+  const myId = currentUser?.id || "me";
+  const myProfile = state.builders.find((builder) => builder.id === myId);
+  const myHelpRequests = state.helps.filter((help) => help.userId === myId);
+  const solvedRequests = myHelpRequests.filter((help) => help.solved);
+  const myQuestions = state.questions.filter((question) => question.userId === myId);
+  const solvedQuestions = myQuestions.filter((question) => question.solved);
+  const myShowcases = state.showcases.filter((item) => item.userId === myId);
+  const myChats = state.chats.filter((chat) => chat.userId === myId);
+  const helpSignals = myChats.filter((chat) => chat.text.includes("도움 요청을 도울 수 있다고 했습니다"));
+  const coffeeSignals = myChats.filter((chat) => chat.text.includes("커피챗을 요청했습니다"));
+  const profileBonus = [state.profile.nickname, state.profile.goal, state.profile.category, state.profile.status, state.profile.tools].filter(Boolean).length * 5;
+  const activeBonus = myProfile ? 10 : 0;
+
+  const xp =
+    profileBonus +
+    activeBonus +
+    myHelpRequests.length * 15 +
+    solvedRequests.length * 40 +
+    myQuestions.length * 12 +
+    solvedQuestions.length * 25 +
+    myShowcases.length * 35 +
+    Math.min(myChats.length, 80) * 2 +
+    helpSignals.length * 25 +
+    coffeeSignals.length * 10;
+
+  return {
+    xp,
+    helpSignals: helpSignals.length,
+    solved: solvedRequests.length + solvedQuestions.length,
+    showcases: myShowcases.length
+  };
+}
+
 function activeRoom() {
   return state.rooms.find((room) => room.id === state.activeRoomId) || state.rooms[0];
 }
@@ -776,6 +846,19 @@ function renderMetrics() {
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
 }
 
+function renderLevel() {
+  const stats = calculateBuilderXp();
+  const level = levelFromXp(stats.xp);
+  byId("builderLevel").textContent = `Lv. ${level.level}`;
+  byId("builderTitle").textContent = titleForLevel(level.level);
+  byId("builderXp").textContent = `${stats.xp.toLocaleString()} XP`;
+  byId("nextLevelXp").textContent = level.level >= 100 ? "최고 레벨" : `다음 레벨까지 ${(level.next - level.intoLevel).toLocaleString()} XP`;
+  byId("xpBarFill").style.width = `${level.progress}%`;
+  byId("statHelpGiven").textContent = stats.helpSignals;
+  byId("statSolved").textContent = stats.solved;
+  byId("statShowcase").textContent = stats.showcases;
+}
+
 function renderAll(options = {}) {
   syncProfileInputs(Boolean(options.forceProfileSync));
   renderRooms();
@@ -786,6 +869,7 @@ function renderAll(options = {}) {
   renderShowcases();
   renderCoffeeMatches();
   renderMetrics();
+  renderLevel();
 }
 
 function updateMyBuilder() {
@@ -817,7 +901,7 @@ async function addRoomChat(text, roomId = state.activeRoomId) {
     if (error) throw error;
     await loadRemoteState();
   } else {
-    state.chats.push({ id: `c-${Date.now()}`, roomId, name: state.profile.nickname || "나", text });
+    state.chats.push({ id: `c-${Date.now()}`, roomId, userId: currentUser?.id || "me", name: state.profile.nickname || "나", text });
     saveState();
   }
 }
@@ -1047,6 +1131,7 @@ byId("helpForm").addEventListener("submit", async (event) => {
       state.helps.unshift({
         id: `h-${Date.now()}`,
         roomId: state.activeRoomId,
+        userId: currentUser?.id || "me",
         title: data.get("title"),
         category: data.get("category"),
         type: data.get("type"),
@@ -1083,6 +1168,7 @@ byId("questionForm").addEventListener("submit", async (event) => {
     } else {
       state.questions.unshift({
         id: `q-${Date.now()}`,
+        userId: currentUser?.id || "me",
         title: data.get("title"),
         category: data.get("category"),
         tools: data.get("tools"),
@@ -1126,6 +1212,7 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
     } else {
       state.showcases.unshift({
         id: `s-${Date.now()}`,
+        userId: currentUser?.id || "me",
         title: data.get("title"),
         category: data.get("category"),
         tools: data.get("tools"),

@@ -360,6 +360,85 @@ button:disabled {
   font-size: 12px;
 }
 
+.level-panel {
+  padding: 16px;
+}
+
+.level-cap {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.level-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.level-head strong {
+  font-size: 28px;
+}
+
+.level-head span {
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.xp-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(49, 95, 114, 0.12);
+  margin-top: 12px;
+}
+
+.xp-bar div {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--yellow), var(--coral));
+  transition: width 0.25s ease;
+}
+
+.xp-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.level-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.level-stats div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 10px;
+}
+
+.level-stats strong {
+  font-size: 18px;
+}
+
+.level-stats span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .workspace {
   display: flex;
   flex-direction: column;
