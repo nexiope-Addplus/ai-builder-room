@@ -9,18 +9,18 @@ const floorPlan = [
   { floor: "4F", category: "Showcase", name: "Showcase Hall", note: "완성작 전시" }
 ];
 const seatPlan = [
-  { id: "A1", name: "창가 집중석", x: 58, y: 96 },
-  { id: "A2", name: "조용한 구석석", x: 190, y: 96 },
-  { id: "A3", name: "도움 데스크 근처", x: 58, y: 246 },
-  { id: "A4", name: "디자인 피드백석", x: 190, y: 246 },
-  { id: "B1", name: "중앙 빌드석", x: 380, y: 132 },
-  { id: "B2", name: "커피챗 근처", x: 512, y: 132 },
-  { id: "B3", name: "몰입 코너석", x: 380, y: 282 },
-  { id: "B4", name: "라운지 근처석", x: 512, y: 282 },
-  { id: "C1", name: "상담 데스크석", x: 58, y: 358 },
-  { id: "C2", name: "빠른 질문석", x: 190, y: 358 },
-  { id: "C3", name: "멘토 대기석", x: 380, y: 358 },
-  { id: "C4", name: "조용한 예약석", x: 512, y: 358 }
+  { id: "A1", name: "창가 집중석", x: 60, y: 178 },
+  { id: "A2", name: "조용한 구석석", x: 240, y: 178 },
+  { id: "A3", name: "도움 데스크 근처", x: 420, y: 178 },
+  { id: "A4", name: "디자인 피드백석", x: 570, y: 178 },
+  { id: "B1", name: "중앙 빌드석", x: 60, y: 358 },
+  { id: "B2", name: "커피챗 가능석", x: 240, y: 358 },
+  { id: "B3", name: "몰입 코너석", x: 420, y: 358 },
+  { id: "B4", name: "조용한 예약석", x: 570, y: 358 },
+  { id: "C1", name: "상담 데스크석", x: 526, y: 452 },
+  { id: "C2", name: "빠른 질문석", x: 82, y: 270 },
+  { id: "C3", name: "멘토 대기석", x: 304, y: 270 },
+  { id: "C4", name: "예비 좌석", x: 526, y: 270 }
 ];
 const toolOptions = [
   "Claude",
@@ -805,14 +805,21 @@ function renderBuilders() {
   });
 
   byId("builderGrid").innerHTML = `
-    <div class="cafe-room">
+    <div class="cafe-room game-room">
+      <div class="map-zone zone-wood"></div>
       <div class="room-wall wall-top"></div>
       <div class="room-wall wall-left"></div>
-      <div class="cafe-prop prop-window"><span>창가석</span></div>
-      <div class="cafe-prop prop-help"><span>HELP DESK</span></div>
-      <div class="cafe-prop prop-cafe"><span>COFFEE</span></div>
+      <div class="cafe-prop prop-bookcase prop-bookcase-left"><span></span></div>
+      <div class="cafe-prop prop-bookcase prop-bookcase-mid"><span></span></div>
+      <div class="cafe-prop prop-bookcase prop-bookcase-right"><span></span></div>
+      <div class="cafe-prop prop-plant prop-plant-left"><span></span></div>
+      <div class="cafe-prop prop-plant prop-plant-mid"><span></span></div>
+      <div class="cafe-prop prop-plant prop-plant-right"><span></span></div>
+      <div class="cafe-prop prop-boxes"><span></span></div>
+      <div class="cafe-prop prop-clock"><span></span></div>
+      <div class="cafe-prop prop-window"><span></span></div>
+      <div class="cafe-prop prop-help"><span>HELP</span></div>
       <div class="cafe-prop prop-showcase"><span>SHOWCASE</span></div>
-      <div class="cafe-prop prop-bookshelf"><span>DOCS</span></div>
       <div class="entry-gate"><span>SCAN PASS</span></div>
       <div class="quiet-sign">정숙 · 집중 · 공유</div>
       <div class="main-aisle"></div>
@@ -857,7 +864,19 @@ function renderBuilders() {
         .join("")}
     </div>
   `;
+  fitRoomMap();
   renderSelectedSeat();
+}
+
+function fitRoomMap() {
+  const grid = byId("builderGrid");
+  const room = grid?.querySelector(".cafe-room");
+  if (!grid || !room) return;
+  const roomWidth = 760;
+  const roomHeight = 560;
+  const scale = Math.min(1, grid.clientWidth / roomWidth);
+  room.style.transform = `scale(${scale})`;
+  grid.style.height = `${Math.ceil(roomHeight * scale)}px`;
 }
 
 function renderHelp() {
@@ -1477,5 +1496,7 @@ byId("emailLoginForm").addEventListener("submit", (event) => {
   const email = byId("emailLoginInput").value.trim();
   if (email) signInWithEmail(email);
 });
+
+window.addEventListener("resize", fitRoomMap);
 
 initAuth();
