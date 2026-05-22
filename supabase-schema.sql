@@ -190,11 +190,18 @@ create policy "signed-in users create chats"
 
 insert into public.rooms (name, category, capacity)
 values
-  ('Vibe Coding 작업실 1', 'Vibe Coding', 8),
-  ('App Building 작업실 1', 'App Building', 8),
-  ('Design 피드백룸', 'Design', 8),
-  ('Automation 실험실', 'Automation', 8),
-  ('빠른 도움방', 'Prompt / Workflow', 12)
+  ('B101호', 'Prompt / Workflow', 12),
+  ('B102호', 'Prompt / Workflow', 12),
+  ('B103호', 'Prompt / Workflow', 12),
+  ('101호', 'Design', 8),
+  ('102호', 'Design', 8),
+  ('103호', 'Design', 8),
+  ('201호', 'Vibe Coding', 8),
+  ('202호', 'Vibe Coding', 8),
+  ('203호', 'Vibe Coding', 8),
+  ('301호', 'Automation', 8),
+  ('302호', 'Automation', 8),
+  ('303호', 'Automation', 8)
 on conflict do nothing;
 
 do $$

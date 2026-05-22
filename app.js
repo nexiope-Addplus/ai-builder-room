@@ -71,6 +71,18 @@ let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "A1";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
 let usageTimer = null;
 
+// Premium Features Global Variables
+let pomoSecondsLeft = 25 * 60;
+let pomoIsRunning = false;
+let pomoInterval = null;
+let pomoIsBreak = false;
+
+let audioCtx = null;
+let rainNode = null, wavesNode = null, humNode = null, fireNode = null;
+let rainGain = null, wavesGain = null, humGain = null, fireGain = null;
+let masterGain = null;
+let isMuted = false;
+
 const seedState = {
   profile: {
     nickname: "나",
@@ -81,11 +93,18 @@ const seedState = {
   },
   activeRoomId: "vibe-1",
   rooms: [
-    { id: "vibe-1", name: "Vibe Coding 작업실 1", category: "Vibe Coding", limit: 8 },
-    { id: "app-1", name: "App Building 작업실 1", category: "App Building", limit: 8 },
-    { id: "design-1", name: "Design 피드백룸", category: "Design", limit: 8 },
-    { id: "auto-1", name: "Automation 실험실", category: "Automation", limit: 8 },
-    { id: "help-1", name: "빠른 도움방", category: "Prompt / Workflow", limit: 12 }
+    { id: "help-1", name: "B101호", category: "Prompt / Workflow", limit: 12 },
+    { id: "help-2", name: "B102호", category: "Prompt / Workflow", limit: 12 },
+    { id: "help-3", name: "B103호", category: "Prompt / Workflow", limit: 12 },
+    { id: "design-1", name: "101호", category: "Design", limit: 8 },
+    { id: "design-2", name: "102호", category: "Design", limit: 8 },
+    { id: "design-3", name: "103호", category: "Design", limit: 8 },
+    { id: "vibe-1", name: "201호", category: "Vibe Coding", limit: 8 },
+    { id: "vibe-2", name: "202호", category: "Vibe Coding", limit: 8 },
+    { id: "vibe-3", name: "203호", category: "Vibe Coding", limit: 8 },
+    { id: "auto-1", name: "301호", category: "Automation", limit: 8 },
+    { id: "auto-2", name: "302호", category: "Automation", limit: 8 },
+    { id: "auto-3", name: "303호", category: "Automation", limit: 8 }
   ],
   builders: [
     {
@@ -214,7 +233,14 @@ function loadState() {
   const saved = localStorage.getItem(storageKey);
   if (!saved) return structuredClone(seedState);
   try {
-    return JSON.parse(saved);
+    const data = JSON.parse(saved);
+    const defaultIds = new Set(seedState.rooms.map(r => r.id));
+    const customRooms = (data.rooms || []).filter(r => !defaultIds.has(r.id) && r.id !== "app-1");
+    data.rooms = [...structuredClone(seedState.rooms), ...customRooms];
+    if (!data.rooms.some(r => r.id === data.activeRoomId)) {
+      data.activeRoomId = "vibe-1";
+    }
+    return data;
   } catch {
     return structuredClone(seedState);
   }
@@ -754,18 +780,44 @@ function titleForLevel(level) {
   return "New Builder";
 }
 
-function calculateBuilderXp() {
-  const myId = currentUser?.id || "me";
+function calculateBuilderXp(targetId) {
+  const myId = targetId || currentUser?.id || "me";
   const myProfile = state.builders.find((builder) => builder.id === myId);
-  const myHelpRequests = state.helps.filter((help) => help.userId === myId);
+  
+  // Use DB/Local state based on correct user fields
+  const myHelpRequests = state.helps.filter((help) => (help.userId === myId || help.user_id === myId));
   const solvedRequests = myHelpRequests.filter((help) => help.solved);
-  const myQuestions = state.questions.filter((question) => question.userId === myId);
+  
+  const myQuestions = state.questions.filter((question) => (question.userId === myId || question.user_id === myId));
   const solvedQuestions = myQuestions.filter((question) => question.solved);
-  const myShowcases = state.showcases.filter((item) => item.userId === myId);
-  const myChats = state.chats.filter((chat) => chat.userId === myId);
-  const helpSignals = myChats.filter((chat) => chat.text.includes("도움 요청을 도울 수 있다고 했습니다"));
-  const coffeeSignals = myChats.filter((chat) => chat.text.includes("커피챗을 요청했습니다"));
-  const profileBonus = [state.profile.nickname, state.profile.goal, state.profile.category, state.profile.status, state.profile.tools].filter(Boolean).length * 5;
+  
+  const myShowcases = state.showcases.filter((item) => (item.userId === myId || item.user_id === myId));
+  const myChats = state.chats.filter((chat) => (chat.userId === myId || chat.user_id === myId));
+  
+  const helpSignals = myChats.filter((chat) => chat.text && chat.text.includes("도움 요청을 도울 수 있다고 했습니다"));
+  const coffeeSignals = myChats.filter((chat) => chat.text && chat.text.includes("커피챗을 요청했습니다"));
+  
+  let profileNickname = "";
+  let profileGoal = "";
+  let profileCategory = "";
+  let profileStatus = "";
+  let profileTools = "";
+  
+  if (myId === (currentUser?.id || "me")) {
+    profileNickname = state.profile.nickname;
+    profileGoal = state.profile.goal;
+    profileCategory = state.profile.category;
+    profileStatus = state.profile.status;
+    profileTools = state.profile.tools;
+  } else if (myProfile) {
+    profileNickname = myProfile.name;
+    profileGoal = myProfile.goal;
+    profileCategory = myProfile.category;
+    profileStatus = myProfile.status;
+    profileTools = myProfile.tools;
+  }
+  
+  const profileBonus = [profileNickname, profileGoal, profileCategory, profileStatus, profileTools].filter(Boolean).length * 5;
   const activeBonus = myProfile ? 10 : 0;
 
   const xp =
@@ -820,7 +872,8 @@ function syncProfileInputs(force = false) {
 
 function renderRooms() {
   const active = activeRoom();
-  byId("roomsList").innerHTML = state.rooms
+  const filteredRooms = state.rooms.filter((room) => room.category === active.category);
+  byId("roomsList").innerHTML = filteredRooms
     .map((room) => {
       const count = roomBuilders(room.id).length;
       return `
@@ -853,10 +906,34 @@ function renderFloors() {
       const room = state.rooms.find((item) => item.category === floor.category);
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
+      
+      // Calculate active builders on this floor
+      let activeCount = 0;
+      if (room) {
+        const floorRooms = state.rooms.filter((r) => r.category === floor.category);
+        floorRooms.forEach((fr) => {
+          activeCount += roomBuilders(fr.id).length;
+        });
+      }
+      
+      let statusDot = `<span class="elevator-indicator empty">⚪ 0명</span>`;
+      if (floor.category === "Showcase") {
+        const itemCount = state.showcases ? state.showcases.length : 0;
+        statusDot = `<span class="elevator-indicator showcase">🏆 ${itemCount}전시</span>`;
+      } else if (activeCount > 0) {
+        const condClass = activeCount >= 4 ? "busy" : "active";
+        const condDot = activeCount >= 4 ? "🟡" : "🟢";
+        statusDot = `<span class="elevator-indicator ${condClass}">${condDot} ${activeCount}명</span>`;
+      }
+      
       return `
         <button class="floor-card ${isActive ? "active" : ""}" data-floor-room-id="${escapeHtml(room?.id || "")}" data-floor-view="${escapeHtml(viewTarget)}" ${room || viewTarget ? "" : "disabled"}>
-          <strong>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)}</strong>
-          <span>${escapeHtml(floor.note)}</span>
+          <div class="floor-card-header">
+            <strong>${escapeHtml(floor.floor)}</strong>
+            ${statusDot}
+          </div>
+          <span class="floor-name">${escapeHtml(floor.name)}</span>
+          <span class="floor-note">${escapeHtml(floor.note)}</span>
         </button>
       `;
     })
@@ -879,6 +956,15 @@ function renderBuilders() {
       <div class="room-wall wall-top"></div>
       <div class="room-wall wall-left"></div>
       <div class="room-theme-sign">${escapeHtml(themeLabel)}</div>
+      <div class="ambient-dust-container">
+        <span class="dust-particle" style="left:12%; top:24%; --delay:0s; --dur:8s;"></span>
+        <span class="dust-particle" style="left:45%; top:15%; --delay:1.5s; --dur:10s;"></span>
+        <span class="dust-particle" style="left:82%; top:30%; --delay:3s; --dur:7s;"></span>
+        <span class="dust-particle" style="left:28%; top:65%; --delay:0.8s; --dur:12s;"></span>
+        <span class="dust-particle" style="left:60%; top:80%; --delay:2.2s; --dur:9s;"></span>
+        <span class="dust-particle" style="left:88%; top:70%; --delay:4.5s; --dur:11s;"></span>
+        <span class="dust-particle" style="left:15%; top:48%; --delay:1.9s; --dur:9.5s;"></span>
+      </div>
       <div class="cafe-prop prop-bookcase prop-bookcase-left"><span></span></div>
       <div class="cafe-prop prop-bookcase prop-bookcase-mid"><span></span></div>
       <div class="cafe-prop prop-bookcase prop-bookcase-right"><span></span></div>
@@ -906,9 +992,17 @@ function renderBuilders() {
           const displayName = builder?.name || "Available";
           const tool = builder ? primaryTool(builder.tools) : "Open";
           const bubbleText = builder ? shortText(builder.goal, 22) : "빈 좌석";
+      const hue = builder ? (function() {
+        let hash = 0;
+        for (let i = 0; i < tool.length; i++) {
+          hash = tool.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash) % 360;
+      })() : 200;
+
       return `
         <button class="seat-button ${statusClass} ${empty ? "empty" : ""} ${selected ? "selected" : ""}"
-          style="left:${seat.x}px; top:${seat.y}px"
+          style="left:${seat.x}px; top:${seat.y}px; --tool-color: hsl(${hue}, 65%, 52%);"
           title="${empty ? "입장 가능한 빈 좌석입니다." : builder?.id === (currentUser?.id || "me") ? "내 좌석입니다." : "사용 중인 좌석입니다. 정보만 볼 수 있습니다."}"
           data-seat-id="${escapeHtml(seat.id)}"
           data-seat-name="${escapeHtml(seat.name)}"
@@ -950,7 +1044,7 @@ function fitRoomMap() {
   const gridTop = grid.getBoundingClientRect().top;
   const viewportReserve = window.matchMedia("(min-width: 721px)").matches ? 106 : 0;
   const availableHeight = Math.max(300, window.innerHeight - gridTop - viewportReserve);
-  const scale = Math.min(1.7, grid.clientWidth / roomWidth, availableHeight / roomHeight);
+  const scale = Math.min(2.4, grid.clientWidth / roomWidth, availableHeight / roomHeight);
   const fittedHeight = Math.ceil(roomHeight * scale);
   room.style.transform = `scale(${scale})`;
   room.style.marginLeft = `${Math.max(0, Math.floor((grid.clientWidth - roomWidth * scale) / 2))}px`;
@@ -1166,6 +1260,14 @@ function renderSelectedSeat() {
   byId("mobileSitSeatButton").disabled = byId("sitSeatButton").disabled;
   coffeeButton.disabled = isEmpty || isMine || !hasSeatTimeLeft();
   coffeeButton.classList.toggle("is-hidden", isEmpty || isMine);
+  
+  // Trigger smooth slide-up animation on selection change
+  const seatInfo = byId("seatInfo");
+  if (seatInfo) {
+    seatInfo.style.animation = 'none';
+    seatInfo.offsetHeight; // trigger reflow
+    seatInfo.style.animation = '';
+  }
 }
 
 function renderLevel() {
@@ -1196,6 +1298,9 @@ function renderAll(options = {}) {
   renderMetrics();
   renderLevel();
   renderFlowGuide();
+  
+  // Premium Features: Live Analytics & Trends Dashboards
+  renderTrends();
 }
 
 function updateMyBuilder() {
@@ -1294,7 +1399,14 @@ document.addEventListener("click", (event) => {
     return;
   }
   if (floorButton && floorButton.dataset.floorRoomId) {
-    state.activeRoomId = floorButton.dataset.floorRoomId;
+    const targetRoomId = floorButton.dataset.floorRoomId;
+    const active = activeRoom();
+    const targetRoom = state.rooms.find((room) => room.id === targetRoomId);
+    if (active && targetRoom && active.category === targetRoom.category) {
+      // Already on this floor! Preserve current room and seat.
+      return;
+    }
+    state.activeRoomId = targetRoomId;
     saveActiveRoom();
     if (remoteReady) {
       joinRoom(state.activeRoomId)
@@ -1315,6 +1427,12 @@ document.addEventListener("click", (event) => {
     document.querySelectorAll(".seat-button").forEach((item) => item.classList.remove("selected"));
     seatButton.classList.add("selected");
     renderSelectedSeat();
+    
+    // Premium feature: Open RPG Holographic card if occupied
+    const builderId = seatButton.dataset.builderId;
+    if (builderId) {
+      showBuilderCard(builderId);
+    }
     return;
   }
 
@@ -1512,9 +1630,18 @@ byId("createRoom").addEventListener("click", async () => {
   }
   const category = state.profile.category;
   const number = state.rooms.filter((room) => room.category === category).length + 1;
+  const floorPrefixMap = {
+    "Prompt / Workflow": "B1",
+    "Design": "1",
+    "Vibe Coding": "2",
+    "Automation": "3"
+  };
+  const prefix = floorPrefixMap[category] || "room";
+  const roomName = prefix !== "room" ? `${prefix}0${number}호` : `${category} 작업실 ${number}`;
+  
   const room = {
     id: `${category.toLowerCase().replaceAll(" ", "-").replaceAll("/", "")}-${Date.now()}`,
-    name: `${category} 작업실 ${number}`,
+    name: roomName,
     category,
     limit: category === "Prompt / Workflow" ? 12 : 8
   };
@@ -1696,6 +1823,12 @@ byId("resetDemo").addEventListener("click", (event) => {
 byId("githubLogin").addEventListener("click", () => signInWithProvider("github"));
 byId("googleLogin").addEventListener("click", () => signInWithProvider("google"));
 byId("signOut").addEventListener("click", signOut);
+byId("demoBypassBtn")?.addEventListener("click", () => {
+  currentUser = null;
+  remoteReady = false;
+  showApp();
+  renderAll();
+});
 byId("emailLoginForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const email = byId("emailLoginInput").value.trim();
@@ -1721,3 +1854,732 @@ document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
 window.addEventListener("resize", fitRoomMap);
 
 initAuth();
+
+/* ==========================================================================
+   PREMIUM FEATURES: POMODORO, FOCUS AUDIO, TRENDS, & RPG HOLO PROFILE CARD
+   ========================================================================== */
+
+// 1. Pomodoro Logic & View Update
+function updatePomoDisplay() {
+  const minutes = Math.floor(pomoSecondsLeft / 60);
+  const seconds = pomoSecondsLeft % 60;
+  const str = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  
+  const pomoTimeDisplay = byId("pomoTimeDisplay");
+  const zenTimeDisplay = byId("zenTimeDisplay");
+  if (pomoTimeDisplay) pomoTimeDisplay.textContent = str;
+  if (zenTimeDisplay) zenTimeDisplay.textContent = str;
+  
+  const total = pomoIsBreak ? 5 * 60 : 25 * 60;
+  const ratio = pomoSecondsLeft / total;
+  
+  const pomoRingFill = byId("pomoRingFill");
+  const zenRingFill = byId("zenRingFill");
+  if (pomoRingFill) pomoRingFill.style.strokeDashoffset = (1 - ratio) * 283;
+  if (zenRingFill) zenRingFill.style.strokeDashoffset = (1 - ratio) * 565;
+  
+  const stateLabel = pomoIsBreak ? "BREAK" : (pomoIsRunning ? "FOCUSING" : "READY");
+  const pomoStateLabel = byId("pomoStateLabel");
+  if (pomoStateLabel) pomoStateLabel.textContent = stateLabel;
+  
+  const pulseText = pomoIsBreak ? "RECOVERY TIME" : "DEEP FOCUSING";
+  const pulseTextEl = document.querySelector(".pomo-pulse-text");
+  if (pulseTextEl) pulseTextEl.textContent = pulseText;
+}
+
+function playAlarmSound() {
+  if (!audioCtx) initAudio();
+  if (audioCtx) {
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.6);
+    } catch (e) {
+      console.error("Error playing alarm sound", e);
+    }
+  }
+}
+
+function tickPomo() {
+  if (pomoSecondsLeft > 0) {
+    pomoSecondsLeft--;
+    updatePomoDisplay();
+  } else {
+    playAlarmSound();
+    if (!pomoIsBreak) {
+      pomoIsBreak = true;
+      pomoSecondsLeft = 5 * 60;
+      alert("집중 시간이 끝났습니다! 5분간 휴식하세요. ☕");
+    } else {
+      pomoIsBreak = false;
+      pomoSecondsLeft = 25 * 60;
+      alert("휴식 시간이 끝났습니다! 다시 집중해볼까요? ⚡");
+    }
+    updatePomoDisplay();
+  }
+}
+
+function startPomo() {
+  initAudio();
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+  if (pomoIsRunning) {
+    pomoIsRunning = false;
+    clearInterval(pomoInterval);
+    pomoInterval = null;
+    byId("pomoStartBtn").textContent = "시작";
+    byId("zenPomoStartBtn").textContent = "집중 시작";
+  } else {
+    pomoIsRunning = true;
+    pomoInterval = setInterval(tickPomo, 1000);
+    byId("pomoStartBtn").textContent = "일시정지";
+    byId("zenPomoStartBtn").textContent = "일시정지";
+  }
+  updatePomoDisplay();
+}
+
+function resetPomo() {
+  pomoIsRunning = false;
+  if (pomoInterval) {
+    clearInterval(pomoInterval);
+    pomoInterval = null;
+  }
+  pomoIsBreak = false;
+  pomoSecondsLeft = 25 * 60;
+  byId("pomoStartBtn").textContent = "시작";
+  byId("zenPomoStartBtn").textContent = "집중 시작";
+  updatePomoDisplay();
+}
+
+// 2. Focus Soundscapes Web Audio API Synthesizers
+function createWhiteNoiseBuffer(seconds) {
+  const size = audioCtx.sampleRate * seconds;
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  return buffer;
+}
+
+function createPinkNoiseBuffer(seconds) {
+  const size = audioCtx.sampleRate * seconds;
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < size; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.76160 * b5 - white * 0.0168980;
+    data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+    data[i] *= 0.11;
+    b6 = white * 0.115926;
+  }
+  return buffer;
+}
+
+function createCampfireBuffer(seconds) {
+  const size = audioCtx.sampleRate * seconds;
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < size; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.76160 * b5 - white * 0.0168980;
+    let pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+    pink *= 0.11;
+    b6 = white * 0.115926;
+    
+    let pop = 0;
+    if (Math.random() < 0.00015) {
+      pop = (Math.random() * 2 - 1) * 0.9;
+    }
+    data[i] = pink * 0.15 + pop;
+  }
+  return buffer;
+}
+
+function createRainSynth() {
+  try {
+    const buffer = createWhiteNoiseBuffer(4);
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 1000;
+    
+    source.connect(filter);
+    filter.connect(rainGain);
+    source.start(0);
+    rainNode = source;
+  } catch (e) {
+    console.error("Rain synth failed", e);
+  }
+}
+
+function createWavesSynth() {
+  try {
+    const waveAmpMod = audioCtx.createGain();
+    waveAmpMod.gain.value = 0.5;
+    
+    const lfo = audioCtx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.08;
+    
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 0.35;
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(waveAmpMod.gain);
+    lfo.start(0);
+    
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 450;
+    
+    const filterLfoGain = audioCtx.createGain();
+    filterLfoGain.gain.value = 250;
+    lfo.connect(filterLfoGain);
+    filterLfoGain.connect(filter.frequency);
+    
+    const source = audioCtx.createBufferSource();
+    source.buffer = createPinkNoiseBuffer(6);
+    source.loop = true;
+    
+    source.connect(filter);
+    filter.connect(waveAmpMod);
+    waveAmpMod.connect(wavesGain);
+    source.start(0);
+    
+    wavesNode = { source, lfo };
+  } catch (e) {
+    console.error("Waves synth failed", e);
+  }
+}
+
+// Cosmic Hum
+function createHumSynth() {
+  try {
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 100;
+    
+    const mixGain = audioCtx.createGain();
+    mixGain.gain.value = 0.4;
+    
+    const oscs = [];
+    const freqs = [55, 55.4, 82.5, 110];
+    const types = ["sine", "sine", "triangle", "sine"];
+    const gains = [0.4, 0.4, 0.2, 0.2];
+    
+    freqs.forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = types[idx];
+      osc.frequency.value = freq;
+      
+      const g = audioCtx.createGain();
+      g.gain.value = gains[idx];
+      
+      osc.connect(g);
+      g.connect(mixGain);
+      osc.start(0);
+      oscs.push(osc);
+    });
+    
+    const lfo = audioCtx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.05;
+    
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 25;
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start(0);
+    
+    mixGain.connect(filter);
+    filter.connect(humGain);
+    
+    humNode = { oscs, lfo };
+  } catch (e) {
+    console.error("Hum synth failed", e);
+  }
+}
+
+function createFireSynth() {
+  try {
+    const source = audioCtx.createBufferSource();
+    source.buffer = createCampfireBuffer(5);
+    source.loop = true;
+    
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 1600;
+    filter.Q.value = 1.0;
+    
+    const flameSource = audioCtx.createBufferSource();
+    flameSource.buffer = createPinkNoiseBuffer(4);
+    flameSource.loop = true;
+    
+    const flameFilter = audioCtx.createBiquadFilter();
+    flameFilter.type = "lowpass";
+    flameFilter.frequency.value = 120;
+    
+    flameSource.connect(flameFilter);
+    flameFilter.connect(fireGain);
+    flameSource.start(0);
+    
+    source.connect(filter);
+    filter.connect(fireGain);
+    source.start(0);
+    
+    fireNode = { source, flameSource };
+  } catch (e) {
+    console.error("Fire synth failed", e);
+  }
+}
+
+function initAudio() {
+  if (audioCtx) return;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+    
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = isMuted ? 0.0 : 1.0;
+    masterGain.connect(audioCtx.destination);
+    
+    rainGain = audioCtx.createGain();
+    rainGain.gain.value = parseFloat(byId("volRain")?.value || 0);
+    rainGain.connect(masterGain);
+    createRainSynth();
+    
+    wavesGain = audioCtx.createGain();
+    wavesGain.gain.value = parseFloat(byId("volWaves")?.value || 0);
+    wavesGain.connect(masterGain);
+    createWavesSynth();
+    
+    humGain = audioCtx.createGain();
+    humGain.gain.value = parseFloat(byId("volHum")?.value || 0);
+    humGain.connect(masterGain);
+    createHumSynth();
+    
+    fireGain = audioCtx.createGain();
+    fireGain.gain.value = parseFloat(byId("volFire")?.value || 0);
+    fireGain.connect(masterGain);
+    createFireSynth();
+  } catch (err) {
+    console.error("Web Audio initialization failed", err);
+  }
+}
+
+function setVolume(type, val) {
+  initAudio();
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+  let gainNode = null;
+  if (type === "rain") gainNode = rainGain;
+  else if (type === "waves") gainNode = wavesGain;
+  else if (type === "hum") gainNode = humGain;
+  else if (type === "fire") gainNode = fireGain;
+  
+  if (gainNode) {
+    gainNode.gain.setValueAtTime(val, audioCtx.currentTime);
+  }
+  
+  // Update Zen Mode CSS variables for ambient background effects
+  const zen = byId("zenOverlay");
+  if (zen) {
+    zen.style.setProperty(`--zen-vol-${type}`, val);
+  }
+}
+
+function toggleMute() {
+  initAudio();
+  if (isMuted) {
+    masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+    byId("ambientMuteBtn").textContent = "소리 전체 끄기";
+    isMuted = false;
+  } else {
+    masterGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+    byId("ambientMuteBtn").textContent = "소리 켜기";
+    isMuted = true;
+  }
+}
+
+// 3. Trends Tab Rendering
+function renderTrends() {
+  const slicesGroup = byId("donutSlices");
+  if (!slicesGroup) return;
+  
+  let currentPercentSum = 0;
+  let slicesHtml = "";
+  let legendHtml = "";
+  const colors = ["#c9815e", "#315f72", "#dfaa5c", "#7ba87f", "#807baf", "#888888"];
+  
+  const toolCounts = {};
+  state.builders.forEach((b) => {
+    if (!b.tools) return;
+    b.tools.split(",").forEach((t) => {
+      const name = t.trim();
+      if (!name || name === "-" || name === "도구 미지정") return;
+      toolCounts[name] = (toolCounts[name] || 0) + 1;
+    });
+  });
+  
+  const sortedTools = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]);
+  const topTools = sortedTools.slice(0, 5);
+  const othersCount = sortedTools.slice(5).reduce((sum, item) => sum + item[1], 0);
+  
+  const chartData = topTools.map(([name, count]) => ({ name, count }));
+  if (othersCount > 0) {
+    chartData.push({ name: "기타", count: othersCount });
+  }
+  
+  const totalToolsSum = chartData.reduce((sum, item) => sum + item.count, 0);
+  byId("donutCenterTotal").textContent = totalToolsSum;
+  
+  if (totalToolsSum > 0) {
+    chartData.forEach((item, index) => {
+      const percentage = item.count / totalToolsSum;
+      const segmentLength = percentage * 251.2;
+      const offset = -currentPercentSum * 251.2;
+      const color = colors[index % colors.length];
+      
+      slicesHtml += `
+        <circle class="donut-slice" cx="50" cy="50" r="40"
+          stroke="${color}"
+          stroke-dasharray="${segmentLength} 251.2"
+          stroke-dashoffset="${offset}"
+          title="${escapeHtml(item.name)}: ${item.count}개 (${Math.round(percentage * 100)}%)">
+        </circle>
+      `;
+      
+      legendHtml += `
+        <div class="legend-item">
+          <span class="legend-color" style="background: ${color}"></span>
+          <span>${escapeHtml(item.name)} (${item.count})</span>
+        </div>
+      `;
+      
+      currentPercentSum += percentage;
+    });
+  } else {
+    slicesHtml = `<circle cx="50" cy="50" r="40" stroke="#cccccc" stroke-width="10" fill="none" opacity="0.2"></circle>`;
+    legendHtml = `<div class="legend-item"><span>등록된 도구가 없습니다.</span></div>`;
+  }
+  
+  slicesGroup.innerHTML = slicesHtml;
+  byId("donutLegend").innerHTML = legendHtml;
+  
+  const floorProgressList = byId("floorProgressList");
+  if (floorProgressList) {
+    floorProgressList.innerHTML = floorPlan.map((floor) => {
+      const room = state.rooms.find((item) => item.category === floor.category);
+      const roomBuildersList = room ? roomBuilders(room.id) : [];
+      const count = roomBuildersList.length;
+      const limit = room ? room.limit : 8;
+      const pct = Math.min(100, Math.round((count / limit) * 100));
+      
+      let color = "var(--blue)";
+      if (pct >= 80) color = "var(--coral)";
+      else if (pct >= 40) color = "var(--yellow)";
+      else color = "var(--green)";
+      
+      return `
+        <div class="floor-progress-item">
+          <div class="floor-progress-header">
+            <span>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)}</span>
+            <span>${count} / ${limit}명 (${pct}%)</span>
+          </div>
+          <div class="floor-progress-bar">
+            <div class="floor-progress-fill" style="width: ${pct}%; background: ${color}"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+  
+  const activeCount = state.builders.length;
+  const modifier = Math.min(25, activeCount * 4);
+  const p0 = 15;
+  const p1 = 40 + modifier * 0.2;
+  const p2 = 80 + modifier * 0.4;
+  const p3 = 55 + modifier * 0.1;
+  const p4 = 90 + modifier * 0.5;
+  const p5 = 25 + modifier * 0.1;
+  
+  const points = [
+    { x: 0, y: 100 - Math.min(95, p0) },
+    { x: 40, y: 100 - Math.min(95, p1) },
+    { x: 80, y: 100 - Math.min(95, p2) },
+    { x: 120, y: 100 - Math.min(95, p3) },
+    { x: 160, y: 100 - Math.min(95, p4) },
+    { x: 200, y: 100 - Math.min(95, p5) }
+  ];
+  
+  const lineD = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
+  const fillD = `${lineD} L 200 100 L 0 100 Z`;
+  
+  byId("chartLinePath").setAttribute("d", lineD);
+  byId("chartLineFill").setAttribute("d", fillD);
+  
+  const feedEl = byId("trendsActivityFeed");
+  if (feedEl) {
+    const feedItems = [];
+    
+    state.builders.forEach((b) => {
+      if (b.id === "me") return;
+      feedItems.push({
+        icon: "👤",
+        text: `<strong>${escapeHtml(b.name)}</strong>님이 <strong>${escapeHtml(b.category)}</strong> 방 좌석에 입장했습니다.`,
+        note: `목표: ${escapeHtml(b.goal)}`,
+        time: "방금 전"
+      });
+    });
+    
+    state.showcases.slice(-3).forEach((s) => {
+      const author = state.builders.find(b => b.id === s.userId || b.id === s.user_id)?.name || "빌더";
+      feedItems.push({
+        icon: "🚀",
+        text: `<strong>${escapeHtml(author)}</strong>님이 새로운 쇼케이스 <strong>"${escapeHtml(s.title)}"</strong>을(를) 출하했습니다!`,
+        note: `도구: ${escapeHtml(s.tools)}`,
+        time: "오늘"
+      });
+    });
+    
+    state.helps.filter(h => h.solved).slice(-3).forEach((h) => {
+      feedItems.push({
+        icon: "🤝",
+        text: `<strong>도움 완료:</strong> <strong>"${escapeHtml(h.title)}"</strong> 문제가 멋지게 해결되었습니다!`,
+        note: `도구: ${escapeHtml(h.tools)}`,
+        time: "오늘"
+      });
+    });
+    
+    if (feedItems.length === 0) {
+      feedItems.push({
+        icon: "💡",
+        text: "현재 활동 로그가 비어있습니다. 좌석에 입장해 코딩을 시작하세요!",
+        note: "",
+        time: "지금"
+      });
+    }
+    
+    feedEl.innerHTML = feedItems.map(item => `
+      <div class="trends-feed-item">
+        <div class="feed-icon">${item.icon}</div>
+        <div class="feed-content">
+          <span>${item.text}</span>
+          ${item.note ? `<small style="font-size: 10px; color: var(--muted); font-weight: 700;">${item.note}</small>` : ""}
+        </div>
+        <div class="feed-time">${item.time}</div>
+      </div>
+    `).join("");
+  }
+}
+
+// 4. Holographic Builder Card Modal Population & interactive 3D Tilt
+function getToolStyle(name) {
+  const toolColors = {
+    "Claude": "background: rgba(201, 129, 94, 0.08); color: #c9815e; border: 1px solid rgba(201, 129, 94, 0.25);",
+    "Claude Code": "background: rgba(201, 129, 94, 0.08); color: #c9815e; border: 1px solid rgba(201, 129, 94, 0.25);",
+    "Cursor": "background: rgba(49, 95, 114, 0.08); color: #315f72; border: 1px solid rgba(49, 95, 114, 0.25);",
+    "GPT": "background: rgba(123, 168, 127, 0.08); color: #7ba87f; border: 1px solid rgba(123, 168, 127, 0.25);",
+    "ChatGPT": "background: rgba(123, 168, 127, 0.08); color: #7ba87f; border: 1px solid rgba(123, 168, 127, 0.25);",
+    "Figma": "background: rgba(128, 123, 175, 0.08); color: #807baf; border: 1px solid rgba(128, 123, 175, 0.25);",
+    "Supabase": "background: rgba(223, 170, 92, 0.08); color: #dfaa5c; border: 1px solid rgba(223, 170, 92, 0.25);",
+    "Make": "background: rgba(201, 94, 94, 0.08); color: #c95e5e; border: 1px solid rgba(201, 94, 94, 0.25);",
+    "n8n": "background: rgba(201, 129, 94, 0.08); color: #c9815e; border: 1px solid rgba(201, 129, 94, 0.25);"
+  };
+  if (toolColors[name]) return toolColors[name];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  return `background: hsla(${h}, 50%, 45%, 0.08); color: hsl(${h}, 50%, 40%); border: 1px solid hsla(${h}, 50%, 45%, 0.25);`;
+}
+
+function showBuilderCard(builderId) {
+  const builder = state.builders.find(b => b.id === builderId) || (builderId === "me" ? {
+    id: "me",
+    name: state.profile.nickname || "나",
+    goal: state.profile.goal || "오늘의 목표 미정",
+    category: state.profile.category || "Vibe Coding",
+    status: state.profile.status || "집중 중",
+    tools: state.profile.tools || "Claude"
+  } : null);
+  
+  if (!builder) return;
+  
+  const stats = calculateBuilderXp(builder.id);
+  const levelInfo = levelFromXp(stats.xp);
+  const title = titleForLevel(levelInfo.level);
+  
+  byId("cardNickname").textContent = builder.name;
+  byId("cardUserTitle").textContent = title;
+  byId("cardLevelBadge").textContent = `Lv.${levelInfo.level}`;
+  byId("cardAvatarInner").textContent = initials(builder.name);
+  
+  const statusEl = byId("cardStatusBadge");
+  statusEl.textContent = builder.status;
+  statusEl.className = "card-status-badge " + (
+    builder.status === "도움 필요" ? "help" :
+    builder.status === "커피챗 가능" ? "coffee" : "focus"
+  );
+  
+  byId("cardXpDisplay").textContent = `${stats.xp.toLocaleString()} XP`;
+  byId("cardNextXpDisplay").textContent = levelInfo.level >= 100 ? "Max" : `다음 레벨까지 ${(levelInfo.next - levelInfo.intoLevel).toLocaleString()} XP`;
+  byId("cardXpBarFill").style.width = `${levelInfo.progress}%`;
+  
+  byId("cardGoal").textContent = builder.goal || "목표가 지정되지 않았습니다.";
+  
+  const toolsContainer = byId("cardToolsList");
+  if (toolsContainer) {
+    if (builder.tools && builder.tools !== "-") {
+      toolsContainer.innerHTML = builder.tools.split(",").map(t => {
+        const name = t.trim();
+        if (!name) return "";
+        const style = getToolStyle(name);
+        return `<span class="card-tool-badge" style="${style}">${escapeHtml(name)}</span>`;
+      }).join("");
+    } else {
+      toolsContainer.innerHTML = `<span class="card-tool-badge" style="background: rgba(0,0,0,0.04); color: var(--muted);">도구 미등록</span>`;
+    }
+  }
+  
+  byId("cardStatHelp").textContent = stats.helpSignals;
+  byId("cardStatSolved").textContent = stats.solved;
+  byId("cardStatShowcase").textContent = stats.showcases;
+  
+  const cardFeedContainer = byId("cardFeedList");
+  if (cardFeedContainer) {
+    const items = [];
+    state.showcases.filter(s => s.userId === builder.id || s.user_id === builder.id).forEach(s => {
+      items.push(`✨ 쇼케이스 출하: <strong>"${escapeHtml(s.title)}"</strong>`);
+    });
+    state.helps.filter(h => (h.userId === builder.id || h.user_id === builder.id) && h.solved).forEach(h => {
+      items.push(`✅ 해결 완료: <strong>"${escapeHtml(h.title)}"</strong>`);
+    });
+    state.chats.filter(c => (c.userId === builder.id || c.user_id === builder.id) && c.text && c.text.includes("도움 요청을 도울 수 있다고 했습니다")).forEach(c => {
+      const match = c.text.match(/"([^"]+)"/);
+      const title = match ? match[1] : "도움 요청";
+      items.push(`🤝 도움 제안: <strong>"${escapeHtml(title)}"</strong>`);
+    });
+    
+    if (items.length === 0) {
+      cardFeedContainer.innerHTML = `<div class="card-feed-item" style="color: var(--muted); text-align: center;">최근 활동 기록이 없습니다.</div>`;
+    } else {
+      cardFeedContainer.innerHTML = items.map(html => `<div class="card-feed-item">${html}</div>`).join("");
+    }
+  }
+  
+  const isMe = builder.id === "me" || (currentUser && builder.id === currentUser.id);
+  const actionsRow = document.querySelector(".card-actions-row");
+  if (actionsRow) {
+    actionsRow.style.display = isMe ? "none" : "grid";
+  }
+  
+  const coffeeBtn = byId("cardCoffeeBtn");
+  const helpBtn = byId("cardHelpBtn");
+  
+  if (coffeeBtn) {
+    coffeeBtn.onclick = () => {
+      coffeeBtn.disabled = true;
+      requestCoffeeChat(builder.id)
+        .then(() => {
+          renderAll();
+          byId("builderCardModal").close();
+        })
+        .catch(err => alert(err.message))
+        .finally(() => {
+          coffeeBtn.disabled = false;
+        });
+    };
+  }
+  
+  if (helpBtn) {
+    const activeHelp = state.helps.find(h => (h.userId === builder.id || h.user_id === builder.id) && !h.solved);
+    if (activeHelp) {
+      helpBtn.disabled = false;
+      helpBtn.textContent = "🤝 이 문제 돕기";
+      helpBtn.onclick = () => {
+        helpBtn.disabled = true;
+        addRoomChat(`${state.profile.nickname || "나"}님이 "${activeHelp.title}" 도움 요청을 도울 수 있다고 했습니다.`, activeHelp.roomId)
+          .then(() => {
+            renderAll();
+            byId("builderCardModal").close();
+          })
+          .catch(err => alert(err.message))
+          .finally(() => {
+            helpBtn.disabled = false;
+          });
+      };
+    } else {
+      helpBtn.disabled = true;
+      helpBtn.textContent = "🤝 도울 요청 없음";
+      helpBtn.onclick = null;
+    }
+  }
+  
+  const holoCard = byId("holoCard");
+  if (holoCard) {
+    holoCard.style.transform = "none";
+    const reflection = holoCard.querySelector(".holo-reflection");
+    if (reflection) {
+      reflection.style.display = "none";
+    }
+    holoCard.onmousemove = null;
+    holoCard.onmouseleave = null;
+  }
+  
+  byId("builderCardModal").showModal();
+}
+
+// 5. Register Events for Pomodoro & Audio
+byId("pomoStartBtn")?.addEventListener("click", startPomo);
+byId("pomoResetBtn")?.addEventListener("click", resetPomo);
+byId("pomoZenBtn")?.addEventListener("click", () => {
+  initAudio();
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+  byId("zenGoalText").textContent = state.profile.goal || "오늘의 목표 미정";
+  byId("zenOverlay").classList.remove("is-hidden");
+});
+
+byId("zenCloseBtn")?.addEventListener("click", () => {
+  byId("zenOverlay").classList.add("is-hidden");
+});
+byId("zenPomoStartBtn")?.addEventListener("click", startPomo);
+byId("zenPomoResetBtn")?.addEventListener("click", resetPomo);
+
+// Volume inputs
+["volRain", "volWaves", "volHum", "volFire"].forEach(id => {
+  byId(id)?.addEventListener("input", (e) => {
+    setVolume(id.replace("vol", "").toLowerCase(), parseFloat(e.target.value));
+  });
+});
+byId("ambientMuteBtn")?.addEventListener("click", toggleMute);
