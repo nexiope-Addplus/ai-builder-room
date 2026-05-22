@@ -1195,8 +1195,12 @@ function adminDeleteButton(table, id) {
   return `<button class="small-button admin-delete" data-admin-delete-table="${escapeHtml(table)}" data-admin-delete-id="${escapeHtml(id)}" title="관리자 삭제">🗑️ 삭제</button>`;
 }
 
+const ADMIN_DELETE_TABLES = new Set(["chats", "help_requests", "questions", "showcases"]);
+
 async function adminDeleteRow(table, id) {
   if (!remoteReady) return;
+  if (!ADMIN_DELETE_TABLES.has(table)) throw new Error("허용되지 않은 테이블입니다.");
+  if (typeof id !== "string" || !id) throw new Error("유효하지 않은 id 입니다.");
   const { error } = await authClient.from(table).delete().eq("id", id);
   if (error) throw error;
   await loadRemoteState();
@@ -1621,7 +1625,8 @@ byId("saveProfile").addEventListener("click", async () => {
     goal: cleanText(byId("goalInput").value, 160) || "오늘의 목표 미정",
     category: cleanText(byId("categoryInput").value, 40),
     status: cleanText(byId("statusInput").value, 40),
-    tools: cleanText(byId("toolsInput").value, 240) || "도구 미지정"
+    tools: cleanText(byId("toolsInput").value, 240) || "도구 미지정",
+    role: state.profile?.role || "user"
   };
   updateMyBuilder();
   try {

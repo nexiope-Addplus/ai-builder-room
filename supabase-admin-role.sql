@@ -17,6 +17,19 @@ begin
   end if;
 end $$;
 
+-- Validate the role check against existing data so the constraint applies to all rows,
+-- not just new writes. Will only succeed if every existing row has role in ('user','admin').
+alter table public.profiles validate constraint profiles_role_allowed;
+
+-- Block client-side privilege escalation at INSERT time. Without this, a freshly
+-- signed-in user could craft an upsert payload with role='admin' on first profile
+-- creation since the INSERT RLS only verified auth.uid() = id.
+drop policy if exists "users create their own profile" on public.profiles;
+create policy "users create their own profile"
+  on public.profiles for insert
+  to authenticated
+  with check (auth.uid() = id and role = 'user');
+
 -- Block self-elevation: users can update their own profile fields but not the role.
 drop policy if exists "users update their own profile" on public.profiles;
 create policy "users update their own profile"
