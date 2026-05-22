@@ -820,7 +820,6 @@ function syncProfileInputs(force = false) {
 
 function renderRooms() {
   const active = activeRoom();
-  const roomSelect = byId("roomSelect");
   byId("roomsList").innerHTML = state.rooms
     .map((room) => {
       const count = roomBuilders(room.id).length;
@@ -832,14 +831,14 @@ function renderRooms() {
       `;
     })
     .join("");
-  if (roomSelect) {
+  document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
     roomSelect.innerHTML = state.rooms
       .map((room) => {
         const count = roomBuilders(room.id).length;
         return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(room.name)} · ${count}/${room.limit}</option>`;
       })
       .join("");
-  }
+  });
 
   byId("activeRoomType").textContent = active.category;
   byId("activeRoomName").textContent = active.name;
@@ -948,9 +947,13 @@ function fitRoomMap() {
   if (!grid || !room) return;
   const roomWidth = 760;
   const roomHeight = 560;
-  const scale = Math.min(1.42, grid.clientWidth / roomWidth);
+  const gridTop = grid.getBoundingClientRect().top;
+  const viewportReserve = window.matchMedia("(min-width: 721px)").matches ? 106 : 0;
+  const availableHeight = Math.max(300, window.innerHeight - gridTop - viewportReserve);
+  const scale = Math.min(1.42, grid.clientWidth / roomWidth, availableHeight / roomHeight);
   const fittedHeight = Math.ceil(roomHeight * scale);
   room.style.transform = `scale(${scale})`;
+  room.style.marginLeft = `${Math.max(0, Math.floor((grid.clientWidth - roomWidth * scale) / 2))}px`;
   grid.style.height = `${fittedHeight}px`;
   grid.style.minHeight = `${fittedHeight}px`;
 }
@@ -1699,18 +1702,20 @@ byId("emailLoginForm").addEventListener("submit", (event) => {
   if (email) signInWithEmail(email);
 });
 
-byId("roomSelect").addEventListener("change", (event) => {
-  state.activeRoomId = event.target.value;
-  saveActiveRoom();
-  if (remoteReady) {
-    joinRoom(state.activeRoomId)
-      .then(refreshRemote)
-      .catch((error) => alert(error.message));
-  } else {
-    updateMyBuilder();
-    saveState();
-    renderAll();
-  }
+document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
+  roomSelect.addEventListener("change", (event) => {
+    state.activeRoomId = event.target.value;
+    saveActiveRoom();
+    if (remoteReady) {
+      joinRoom(state.activeRoomId)
+        .then(refreshRemote)
+        .catch((error) => alert(error.message));
+    } else {
+      updateMyBuilder();
+      saveState();
+      renderAll();
+    }
+  });
 });
 
 window.addEventListener("resize", fitRoomMap);

@@ -905,6 +905,20 @@ button:disabled {
   margin-bottom: 8px;
 }
 
+.room-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quick-room-select {
+  min-width: 270px;
+}
+
+.quick-room-select select {
+  min-height: 36px;
+}
+
 .room-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1186,7 +1200,7 @@ button:disabled {
 }
 
 .builder-grid {
-  min-height: 560px;
+  min-height: 320px;
   overflow: hidden;
   border: 5px solid #101925;
   background: #101925;
@@ -2128,11 +2142,79 @@ button:disabled {
 }
 
 @media (min-width: 721px) {
+  body {
+    overflow: hidden;
+  }
+
+  .app {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    max-height: calc(100vh - 40px);
+    overflow: hidden;
+  }
+
+  .workspace {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #roomsView.active {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #roomsView .flow-guide {
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 5px;
+  }
+
+  #roomsView .flow-step {
+    padding: 4px 7px;
+  }
+
+  .room-header {
+    margin-bottom: 4px;
+  }
+
+  .room-header h3 {
+    font-size: 18px;
+  }
+
+  .notice-board {
+    margin-bottom: 4px;
+  }
+
+  .notice-board span {
+    padding: 4px 7px;
+  }
+
+  .room-map-header {
+    margin-bottom: 6px;
+    padding: 6px 8px;
+  }
+
+  .room-map-header strong {
+    font-size: 13px;
+  }
+
+  .room-layout,
+  .room-stage,
+  .room-main-grid,
+  .map-column {
+    min-height: 0;
+  }
+
   .floor-directory {
-    display: grid;
+    display: none;
     grid-template-columns: auto minmax(0, 1fr) minmax(260px, 340px);
     align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
   }
 
   .floor-directory .section-title {
@@ -2147,9 +2229,94 @@ button:disabled {
   .room-select-row {
     margin-top: 0;
   }
+
+  .room-layout {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .room-stage {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .room-main-grid {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .map-column {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .builder-grid {
+    flex: 0 0 auto;
+  }
+
+  .seat-info {
+    flex: 0 0 auto;
+    margin-top: 8px;
+    padding: 9px 10px;
+  }
+
+  .seat-info strong {
+    font-size: 17px;
+  }
+
+  .seat-info p {
+    font-size: 12px;
+  }
+
+  .room-side-panel {
+    display: none;
+  }
+}
+
+@media (min-width: 721px) and (max-height: 820px) {
+  .topbar,
+  #roomsView .flow-guide,
+  .notice-board,
+  .room-map-header {
+    display: none;
+  }
+
+  .workspace {
+    gap: 8px;
+  }
+
+  .tabs {
+    flex: 0 0 auto;
+  }
+
+  .room-header {
+    margin-bottom: 6px;
+  }
+
+  .room-stage {
+    padding: 10px;
+  }
+
+  .seat-info {
+    padding: 7px 9px;
+  }
+
+  .seat-info strong {
+    font-size: 15px;
+  }
+
+  .seat-info p {
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 720px) {
+  body {
+    overflow: auto;
+  }
+
   .app {
     padding: 12px 12px 88px;
   }
@@ -2181,6 +2348,16 @@ button:disabled {
   .seat-action-group {
     width: 100%;
     justify-items: stretch;
+  }
+
+  .room-header-actions,
+  .quick-room-select {
+    width: 100%;
+  }
+
+  .room-header-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .floor-grid {

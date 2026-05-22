@@ -207,7 +207,7 @@
             <div class="floor-grid" id="floorGrid"></div>
             <label class="room-select-row">
               현재 방
-              <select id="roomSelect"></select>
+              <select id="roomSelect" data-room-select></select>
             </label>
           </section>
 
@@ -226,7 +226,13 @@
                   <p class="eyebrow" id="activeRoomType">Vibe Coding</p>
                   <h3 id="activeRoomName">작업방</h3>
                 </div>
-                <div class="capacity"><span id="activeRoomCount">0</span>/<span id="activeRoomLimit">8</span></div>
+                <div class="room-header-actions">
+                  <label class="quick-room-select">
+                    현재 방
+                    <select id="quickRoomSelect" data-room-select></select>
+                  </label>
+                  <div class="capacity"><span id="activeRoomCount">0</span>/<span id="activeRoomLimit">8</span></div>
+                </div>
               </div>
 
               <div class="notice-board">
