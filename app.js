@@ -707,6 +707,39 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function cleanText(value, maxLength) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function requiredText(value, maxLength, label) {
+  const text = cleanText(value, maxLength);
+  if (!text) throw new Error(`${label}을(를) 입력해주세요.`);
+  return text;
+}
+
+function safeExternalUrl(value) {
+  const raw = cleanText(value, 500);
+  if (!raw) return "";
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("링크는 https:// 또는 http://로 시작하는 올바른 URL만 사용할 수 있습니다.");
+  }
+  if (!["https:", "http:"].includes(url.protocol)) {
+    throw new Error("링크는 https:// 또는 http:// 주소만 허용됩니다.");
+  }
+  return url.href;
+}
+
+function renderSafeExternalUrl(value) {
+  try {
+    return safeExternalUrl(value);
+  } catch {
+    return "";
+  }
+}
+
 function initials(name) {
   return name.trim().slice(0, 2).toUpperCase() || "AI";
 }
@@ -1135,7 +1168,7 @@ function renderShowcases() {
         <article class="content-card">
           <h4>${escapeHtml(item.title)}</h4>
           <p>${escapeHtml(item.body)}</p>
-          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">결과물 보기</a>` : ""}
+          ${renderSafeExternalUrl(item.url) ? `<a href="${escapeHtml(renderSafeExternalUrl(item.url))}" target="_blank" rel="noopener noreferrer">결과물 보기</a>` : ""}
           <div class="meta-row">
             <span class="tag">${escapeHtml(item.category)}</span>
             <span class="tag">${escapeHtml(item.tools || "도구 미지정")}</span>
@@ -1534,11 +1567,11 @@ byId("saveProfile").addEventListener("click", async () => {
   saveButton.textContent = "저장 중...";
   setProfileSaveNote("");
   state.profile = {
-    nickname: byId("nicknameInput").value.trim() || "나",
-    goal: byId("goalInput").value.trim() || "오늘의 목표 미정",
-    category: byId("categoryInput").value,
-    status: byId("statusInput").value,
-    tools: byId("toolsInput").value.trim() || "도구 미지정"
+    nickname: cleanText(byId("nicknameInput").value, 40) || "나",
+    goal: cleanText(byId("goalInput").value, 160) || "오늘의 목표 미정",
+    category: cleanText(byId("categoryInput").value, 40),
+    status: cleanText(byId("statusInput").value, 40),
+    tools: cleanText(byId("toolsInput").value, 240) || "도구 미지정"
   };
   updateMyBuilder();
   try {
@@ -1683,7 +1716,7 @@ byId("chatForm").addEventListener("submit", async (event) => {
     return;
   }
   const input = byId("chatInput");
-  const text = input.value.trim();
+  const text = cleanText(input.value, 240);
   if (!text) return;
   try {
     await addRoomChat(text);
@@ -1703,15 +1736,22 @@ byId("helpForm").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   try {
+    const payload = {
+      title: requiredText(data.get("title"), 120, "제목"),
+      category: cleanText(data.get("category"), 40),
+      type: cleanText(data.get("type"), 40),
+      tools: cleanText(data.get("tools"), 240),
+      body: requiredText(data.get("body"), 2000, "내용")
+    };
     if (remoteReady) {
       const { error } = await authClient.from("help_requests").insert({
         room_id: state.activeRoomId,
         user_id: currentUser.id,
-        title: data.get("title"),
-        category: data.get("category"),
-        help_type: data.get("type"),
-        tools: data.get("tools"),
-        body: data.get("body")
+        title: payload.title,
+        category: payload.category,
+        help_type: payload.type,
+        tools: payload.tools,
+        body: payload.body
       });
       if (error) throw error;
       await loadRemoteState();
@@ -1720,11 +1760,11 @@ byId("helpForm").addEventListener("submit", async (event) => {
         id: `h-${Date.now()}`,
         roomId: state.activeRoomId,
         userId: currentUser?.id || "me",
-        title: data.get("title"),
-        category: data.get("category"),
-        type: data.get("type"),
-        tools: data.get("tools"),
-        body: data.get("body"),
+        title: payload.title,
+        category: payload.category,
+        type: payload.type,
+        tools: payload.tools,
+        body: payload.body,
         solved: false
       });
       saveState();
@@ -1743,13 +1783,19 @@ byId("questionForm").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   try {
+    const payload = {
+      title: requiredText(data.get("title"), 120, "질문 제목"),
+      category: cleanText(data.get("category"), 40),
+      tools: cleanText(data.get("tools"), 240),
+      body: requiredText(data.get("body"), 2000, "질문 내용")
+    };
     if (remoteReady) {
       const { error } = await authClient.from("questions").insert({
         user_id: currentUser.id,
-        title: data.get("title"),
-        category: data.get("category"),
-        tools: data.get("tools"),
-        body: data.get("body")
+        title: payload.title,
+        category: payload.category,
+        tools: payload.tools,
+        body: payload.body
       });
       if (error) throw error;
       await loadRemoteState();
@@ -1757,10 +1803,10 @@ byId("questionForm").addEventListener("submit", async (event) => {
       state.questions.unshift({
         id: `q-${Date.now()}`,
         userId: currentUser?.id || "me",
-        title: data.get("title"),
-        category: data.get("category"),
-        tools: data.get("tools"),
-        body: data.get("body"),
+        title: payload.title,
+        category: payload.category,
+        tools: payload.tools,
+        body: payload.body,
         solved: false
       });
       saveState();
@@ -1779,16 +1825,23 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   try {
+    const payload = {
+      title: requiredText(data.get("title"), 120, "제목"),
+      category: cleanText(data.get("category"), 40),
+      tools: cleanText(data.get("tools"), 240),
+      url: safeExternalUrl(data.get("url")),
+      body: requiredText(data.get("body"), 2000, "내용")
+    };
     if (remoteReady) {
       const { data: created, error } = await authClient
         .from("showcases")
         .insert({
           user_id: currentUser.id,
-          title: data.get("title"),
-          category: data.get("category"),
-          tools: data.get("tools"),
-          url: data.get("url"),
-          body: data.get("body")
+          title: payload.title,
+          category: payload.category,
+          tools: payload.tools,
+          url: payload.url,
+          body: payload.body
         })
         .select()
         .single();
@@ -1801,11 +1854,11 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
       state.showcases.unshift({
         id: `s-${Date.now()}`,
         userId: currentUser?.id || "me",
-        title: data.get("title"),
-        category: data.get("category"),
-        tools: data.get("tools"),
-        url: data.get("url"),
-        body: data.get("body")
+        title: payload.title,
+        category: payload.category,
+        tools: payload.tools,
+        url: payload.url,
+        body: payload.body
       });
       saveState();
     }
