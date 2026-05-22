@@ -1830,12 +1830,6 @@ byId("resetDemo").addEventListener("click", (event) => {
 byId("githubLogin").addEventListener("click", () => signInWithProvider("github"));
 byId("googleLogin").addEventListener("click", () => signInWithProvider("google"));
 byId("signOut").addEventListener("click", signOut);
-byId("demoBypassBtn")?.addEventListener("click", () => {
-  currentUser = null;
-  remoteReady = false;
-  showApp();
-  renderAll();
-});
 byId("emailLoginForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const email = byId("emailLoginInput").value.trim();
