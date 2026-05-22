@@ -98,12 +98,24 @@
             <span>내 작업 상태</span>
             <button class="icon-button" id="resetDemo" title="데모 초기화">↻</button>
           </summary>
+          <div class="profile-preview" id="profilePreview">오늘의 목표를 선택하세요.</div>
           <label>
             닉네임
             <input id="nicknameInput" placeholder="예: Sangwan" />
           </label>
           <label>
             오늘의 목표
+            <select id="goalPresetInput">
+              <option value="">목표를 선택하세요</option>
+              <option>새 앱 MVP 만들기</option>
+              <option>기존 코드 디버깅하기</option>
+              <option>UI/UX 디자인 개선하기</option>
+              <option>자동화 워크플로우 만들기</option>
+              <option>프롬프트/작업 지시서 정리하기</option>
+              <option>배포/연동 문제 해결하기</option>
+              <option>쇼케이스 결과물 정리하기</option>
+              <option value="custom">직접 입력</option>
+            </select>
             <textarea id="goalInput" rows="3" placeholder="예: Claude Code로 예약 페이지 MVP 만들기"></textarea>
           </label>
           <div class="field-grid">
@@ -180,6 +192,13 @@
         </nav>
 
         <section class="view active" id="roomsView">
+          <section class="flow-guide panel" id="flowGuide">
+            <div class="flow-step" data-step="goal"><strong>1</strong><span>목표 선택</span></div>
+            <div class="flow-step" data-step="floor"><strong>2</strong><span>층/방 선택</span></div>
+            <div class="flow-step" data-step="seat"><strong>3</strong><span>좌석 선택</span></div>
+            <div class="flow-step" data-step="enter"><strong>4</strong><span>입장</span></div>
+          </section>
+
           <section class="floor-directory panel">
             <div class="section-title">
               <span>층별 안내</span>
@@ -242,6 +261,7 @@
                     </div>
                     <div class="seat-action-group">
                       <span class="seat-state-pill" id="selectedSeatStatus">입장 가능</span>
+                      <button class="ghost-button" id="seatCoffeeButton" type="button">커피챗 요청</button>
                       <button class="primary-button" id="sitSeatButton">이 자리에 앉기</button>
                     </div>
                   </div>
@@ -253,12 +273,14 @@
                       <span>방 안 도움 요청</span>
                       <button class="small-button" data-open-modal="helpModal">요청</button>
                     </div>
+                    <p class="side-panel-note">막힌 지점을 구조화해서 남기는 공간입니다.</p>
                     <div id="roomHelpList" class="compact-list"></div>
                   </section>
                   <section>
                     <div class="section-title">
                       <span>작업 채팅</span>
                     </div>
+                    <p class="side-panel-note">짧은 공유와 가벼운 대화만 남겨주세요.</p>
                     <div id="chatList" class="chat-list"></div>
                     <form id="chatForm" class="inline-form">
                       <input id="chatInput" placeholder="짧게 공유하기" />
@@ -294,6 +316,12 @@
         </section>
       </section>
     </main>
+
+    <nav class="mobile-action-bar" id="mobileActionBar">
+      <button class="ghost-button" data-open-modal="coffeeModal">커피챗</button>
+      <button class="ghost-button" data-open-modal="helpModal">도움 요청</button>
+      <button class="primary-button" id="mobileSitSeatButton">좌석 입장</button>
+    </nav>
 
     <dialog id="helpModal" class="modal">
       <form class="modal-card" id="helpForm">

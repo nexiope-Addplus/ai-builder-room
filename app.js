@@ -1,5 +1,14 @@
 const categories = ["Vibe Coding", "App Building", "Design", "Automation", "Prompt / Workflow", "Showcase"];
 const statuses = ["집중 중", "질문 가능", "도움 필요", "커피챗 가능", "쉬는 중", "데모 준비 중"];
+const goalOptions = [
+  "새 앱 MVP 만들기",
+  "기존 코드 디버깅하기",
+  "UI/UX 디자인 개선하기",
+  "자동화 워크플로우 만들기",
+  "프롬프트/작업 지시서 정리하기",
+  "배포/연동 문제 해결하기",
+  "쇼케이스 결과물 정리하기"
+];
 const dailySeatLimitSeconds = 5 * 60 * 60;
 const floorPlan = [
   { floor: "B1", category: "Prompt / Workflow", name: "Help Desk", note: "막힌 지점 상담" },
@@ -597,8 +606,10 @@ async function initAuth() {
   });
 }
 
-function fillSelect(select, options, value) {
-  select.innerHTML = options.map((option) => `<option ${option === value ? "selected" : ""}>${option}</option>`).join("");
+function fillSelect(select, options, value, labels = {}) {
+  select.innerHTML = options
+    .map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(labels[option] || option)}</option>`)
+    .join("");
 }
 
 function parseTools(value) {
@@ -674,6 +685,16 @@ function shortText(value, max = 24) {
 
 function primaryTool(value) {
   return parseTools(value)[0] || "AI";
+}
+
+function hasValidGoal() {
+  const goal = String(state.profile.goal || "").trim();
+  return Boolean(goal) && goal !== "오늘의 목표 미정";
+}
+
+function goalPresetValue(goal) {
+  if (!goal || goal === "오늘의 목표 미정") return "";
+  return goalOptions.includes(goal) ? goal : "custom";
 }
 
 function roomThemeClass(category) {
@@ -782,6 +803,10 @@ function syncProfileInputs(force = false) {
   }
   byId("nicknameInput").value = state.profile.nickname;
   byId("goalInput").value = state.profile.goal;
+  fillSelect(byId("goalPresetInput"), ["", ...goalOptions, "custom"], goalPresetValue(state.profile.goal), {
+    "": "목표를 선택하세요",
+    custom: "직접 입력"
+  });
   fillSelect(byId("categoryInput"), categories, state.profile.category);
   fillSelect(byId("statusInput"), statuses, state.profile.status);
   byId("toolsInput").value = state.profile.tools;
@@ -885,6 +910,7 @@ function renderBuilders() {
       return `
         <button class="seat-button ${statusClass} ${empty ? "empty" : ""} ${selected ? "selected" : ""}"
           style="left:${seat.x}px; top:${seat.y}px"
+          title="${empty ? "입장 가능한 빈 좌석입니다." : builder?.id === (currentUser?.id || "me") ? "내 좌석입니다." : "사용 중인 좌석입니다. 정보만 볼 수 있습니다."}"
           data-seat-id="${escapeHtml(seat.id)}"
           data-seat-name="${escapeHtml(seat.name)}"
           data-builder-id="${escapeHtml(builder?.id || "")}"
@@ -953,7 +979,12 @@ function renderHelp() {
           </article>
         `;
       })
-      .join("") || `<article class="compact-item"><p>아직 이 방에는 도움 요청이 없습니다.</p></article>`;
+      .join("") || `
+      <article class="compact-item empty-state">
+        <strong>아직 도움 요청이 없습니다.</strong>
+        <p>막힌 지점이 있다면 첫 요청을 남겨보세요.</p>
+        <button class="small-button" data-open-modal="helpModal">도움 요청하기</button>
+      </article>`;
 }
 
 function renderChats() {
@@ -967,7 +998,7 @@ function renderChats() {
           </article>
         `
       )
-      .join("") || `<article class="chat-item"><p>첫 공유를 남겨보세요.</p></article>`;
+      .join("") || `<article class="chat-item empty-state"><p>첫 공유를 남겨보세요. 지금 작업 중인 내용을 짧게 남기면 됩니다.</p></article>`;
 }
 
 function renderQuestions() {
@@ -1054,6 +1085,29 @@ function renderMetrics() {
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
 }
 
+function renderProfilePreview() {
+  const category = byId("categoryInput")?.value || state.profile.category;
+  const status = byId("statusInput")?.value || state.profile.status;
+  const tools = formatToolSummary(parseTools(byId("toolsInput")?.value || state.profile.tools));
+  byId("profilePreview").textContent = `${status || "상태 미정"} · ${category || "카테고리 미정"} · ${tools}`;
+}
+
+function renderFlowGuide() {
+  const steps = {
+    goal: hasValidGoal(),
+    floor: Boolean(activeRoom()),
+    seat: Boolean(selectedSeatId),
+    enter: isSeatCheckedIn
+  };
+  const flowSteps = [...document.querySelectorAll(".flow-step")];
+  const firstOpen = flowSteps.find((step) => !steps[step.dataset.step]);
+  flowSteps.forEach((step) => {
+    const done = Boolean(steps[step.dataset.step]);
+    step.classList.toggle("done", done);
+    step.classList.toggle("current", step === firstOpen);
+  });
+}
+
 function renderUsagePass() {
   const used = getUsageSeconds();
   const percent = Math.min(100, Math.round((used / dailySeatLimitSeconds) * 100));
@@ -1075,15 +1129,23 @@ function renderSelectedSeat() {
   const occupiedName = selectedButton?.dataset.builderName || "빈 자리";
   const status = selectedButton?.dataset.builderStatus || "사용 가능";
   const statePill = byId("selectedSeatStatus");
+  const coffeeButton = byId("seatCoffeeButton");
   const isMine = selectedSeatIsMine();
   const isEmpty = occupiedName === "빈 자리";
+  const goalReady = hasValidGoal();
   byId("selectedSeatTitle").textContent = `${seat.id} · ${seat.name}`;
   byId("selectedSeatCopy").textContent =
+    !goalReady
+      ? "오늘의 목표를 먼저 선택해야 좌석에 입장할 수 있습니다."
+      :
     isEmpty
       ? "사용 가능한 좌석입니다. 오늘의 작업권으로 입장할 수 있습니다."
       : `${occupiedName} · ${status} · ${selectedButton?.dataset.builderGoal || ""}`;
   statePill.className = "seat-state-pill";
-  if (!hasSeatTimeLeft()) {
+  if (!goalReady) {
+    statePill.textContent = "목표 필요";
+    statePill.classList.add("blocked");
+  } else if (!hasSeatTimeLeft()) {
     statePill.textContent = "이용 시간 종료";
     statePill.classList.add("blocked");
   } else if (isMine) {
@@ -1096,7 +1158,11 @@ function renderSelectedSeat() {
     statePill.classList.add("busy");
   }
   byId("sitSeatButton").textContent = isMine ? "내 좌석 입장" : isEmpty ? "이 자리에 앉기" : "좌석 정보 보기";
-  byId("sitSeatButton").disabled = !hasSeatTimeLeft() || (!isEmpty && !isMine);
+  byId("sitSeatButton").disabled = !goalReady || !hasSeatTimeLeft() || (!isEmpty && !isMine);
+  byId("mobileSitSeatButton").textContent = byId("sitSeatButton").textContent;
+  byId("mobileSitSeatButton").disabled = byId("sitSeatButton").disabled;
+  coffeeButton.disabled = isEmpty || isMine || !hasSeatTimeLeft();
+  coffeeButton.classList.toggle("is-hidden", isEmpty || isMine);
 }
 
 function renderLevel() {
@@ -1114,6 +1180,7 @@ function renderLevel() {
 
 function renderAll(options = {}) {
   syncProfileInputs(Boolean(options.forceProfileSync));
+  renderProfilePreview();
   renderUsagePass();
   renderFloors();
   renderRooms();
@@ -1125,6 +1192,7 @@ function renderAll(options = {}) {
   renderCoffeeMatches();
   renderMetrics();
   renderLevel();
+  renderFlowGuide();
 }
 
 function updateMyBuilder() {
@@ -1159,6 +1227,16 @@ async function addRoomChat(text, roomId = state.activeRoomId) {
     state.chats.push({ id: `c-${Date.now()}`, roomId, userId: currentUser?.id || "me", name: state.profile.nickname || "나", text });
     saveState();
   }
+}
+
+async function requestCoffeeChat(builderId) {
+  if (!hasSeatTimeLeft()) {
+    alert("오늘 무료 좌석 이용 시간이 끝났습니다. 내일 다시 커피챗을 요청할 수 있어요.");
+    return;
+  }
+  const match = state.builders.find((builder) => builder.id === builderId);
+  if (!match) return;
+  await addRoomChat(`${state.profile.nickname || "나"}님이 ${match.name}님에게 10분 커피챗을 요청했습니다.`, match.roomId);
 }
 
 async function markHelpSolved(helpId) {
@@ -1200,7 +1278,10 @@ document.addEventListener("click", (event) => {
   if (toolInput) {
     const picker = toolInput.closest(".tool-picker");
     const hiddenInput = picker.closest(".field-label")?.querySelector("input[type='hidden']");
-    if (hiddenInput) refreshToolPicker(picker, hiddenInput);
+    if (hiddenInput) {
+      refreshToolPicker(picker, hiddenInput);
+      if (picker.id === "profileToolPicker") renderProfilePreview();
+    }
     return;
   }
 
@@ -1272,14 +1353,8 @@ document.addEventListener("click", (event) => {
 
   const coffeeButton = event.target.closest("[data-coffee-id]");
   if (coffeeButton) {
-    if (!hasSeatTimeLeft()) {
-      alert("오늘 무료 좌석 이용 시간이 끝났습니다. 내일 다시 커피챗을 요청할 수 있어요.");
-      return;
-    }
-    const match = state.builders.find((builder) => builder.id === coffeeButton.dataset.coffeeId);
-    if (!match) return;
     coffeeButton.disabled = true;
-    addRoomChat(`${state.profile.nickname || "나"}님이 ${match.name}님에게 10분 커피챗을 요청했습니다.`, match.roomId)
+    requestCoffeeChat(coffeeButton.dataset.coffeeId)
       .then(() => {
         renderAll();
         byId("coffeeModal").close();
@@ -1361,6 +1436,11 @@ byId("saveProfile").addEventListener("click", async () => {
 });
 
 byId("sitSeatButton").addEventListener("click", async () => {
+  if (!hasValidGoal()) {
+    alert("좌석에 앉기 전에 오늘의 목표를 먼저 선택해주세요.");
+    byId("goalPresetInput").focus();
+    return;
+  }
   if (!hasSeatTimeLeft()) {
     alert("오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.");
     return;
@@ -1374,6 +1454,52 @@ byId("sitSeatButton").addEventListener("click", async () => {
   setUsageSeconds(getUsageSeconds() + 60);
   await addRoomChat(`${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`);
   renderAll();
+});
+
+byId("mobileSitSeatButton").addEventListener("click", () => byId("sitSeatButton").click());
+
+byId("seatCoffeeButton").addEventListener("click", async () => {
+  const selectedButton = document.querySelector(`[data-seat-id="${selectedSeatId}"]`);
+  const builderId = selectedButton?.dataset.builderId;
+  if (!builderId) return;
+  try {
+    await requestCoffeeChat(builderId);
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+byId("goalPresetInput").addEventListener("change", (event) => {
+  const value = event.target.value;
+  const goalInput = byId("goalInput");
+  if (!value) {
+    goalInput.value = "";
+    state.profile.goal = "오늘의 목표 미정";
+  } else if (value === "custom") {
+    goalInput.focus();
+  } else {
+    goalInput.value = value;
+    state.profile.goal = value;
+  }
+  renderProfilePreview();
+  renderUsagePass();
+  renderSelectedSeat();
+  renderFlowGuide();
+});
+
+byId("goalInput").addEventListener("input", () => {
+  const goal = byId("goalInput").value.trim();
+  state.profile.goal = goal || "오늘의 목표 미정";
+  if (goal && !goalOptions.includes(goal)) byId("goalPresetInput").value = "custom";
+  renderProfilePreview();
+  renderUsagePass();
+  renderSelectedSeat();
+  renderFlowGuide();
+});
+
+["categoryInput", "statusInput"].forEach((inputId) => {
+  byId(inputId).addEventListener("change", renderProfilePreview);
 });
 
 byId("createRoom").addEventListener("click", async () => {
