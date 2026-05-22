@@ -795,6 +795,7 @@ function syncProfileInputs(force = false) {
 
 function renderRooms() {
   const active = activeRoom();
+  const roomSelect = byId("roomSelect");
   byId("roomsList").innerHTML = state.rooms
     .map((room) => {
       const count = roomBuilders(room.id).length;
@@ -806,6 +807,14 @@ function renderRooms() {
       `;
     })
     .join("");
+  if (roomSelect) {
+    roomSelect.innerHTML = state.rooms
+      .map((room) => {
+        const count = roomBuilders(room.id).length;
+        return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(room.name)} · ${count}/${room.limit}</option>`;
+      })
+      .join("");
+  }
 
   byId("activeRoomType").textContent = active.category;
   byId("activeRoomName").textContent = active.name;
@@ -914,8 +923,10 @@ function fitRoomMap() {
   const roomWidth = 760;
   const roomHeight = 560;
   const scale = Math.min(1, grid.clientWidth / roomWidth);
+  const fittedHeight = Math.ceil(roomHeight * scale);
   room.style.transform = `scale(${scale})`;
-  grid.style.height = `${Math.ceil(roomHeight * scale)}px`;
+  grid.style.height = `${fittedHeight}px`;
+  grid.style.minHeight = `${fittedHeight}px`;
 }
 
 function renderHelp() {
@@ -1063,13 +1074,29 @@ function renderSelectedSeat() {
   const selectedButton = document.querySelector(`[data-seat-id="${seat.id}"]`);
   const occupiedName = selectedButton?.dataset.builderName || "빈 자리";
   const status = selectedButton?.dataset.builderStatus || "사용 가능";
+  const statePill = byId("selectedSeatStatus");
+  const isMine = selectedSeatIsMine();
+  const isEmpty = occupiedName === "빈 자리";
   byId("selectedSeatTitle").textContent = `${seat.id} · ${seat.name}`;
   byId("selectedSeatCopy").textContent =
-    occupiedName === "빈 자리"
+    isEmpty
       ? "사용 가능한 좌석입니다. 오늘의 작업권으로 입장할 수 있습니다."
       : `${occupiedName} · ${status} · ${selectedButton?.dataset.builderGoal || ""}`;
-  byId("sitSeatButton").textContent = selectedSeatIsMine() ? "내 좌석 입장" : occupiedName === "빈 자리" ? "이 자리에 앉기" : "좌석 정보 보기";
-  byId("sitSeatButton").disabled = !hasSeatTimeLeft() || (occupiedName !== "빈 자리" && !selectedSeatIsMine());
+  statePill.className = "seat-state-pill";
+  if (!hasSeatTimeLeft()) {
+    statePill.textContent = "이용 시간 종료";
+    statePill.classList.add("blocked");
+  } else if (isMine) {
+    statePill.textContent = "내 좌석";
+    statePill.classList.add("mine");
+  } else if (isEmpty) {
+    statePill.textContent = "입장 가능";
+  } else {
+    statePill.textContent = "사용 중";
+    statePill.classList.add("busy");
+  }
+  byId("sitSeatButton").textContent = isMine ? "내 좌석 입장" : isEmpty ? "이 자리에 앉기" : "좌석 정보 보기";
+  byId("sitSeatButton").disabled = !hasSeatTimeLeft() || (!isEmpty && !isMine);
 }
 
 function renderLevel() {
@@ -1321,11 +1348,15 @@ byId("saveProfile").addEventListener("click", async () => {
     }
     renderAll({ forceProfileSync: true });
     setProfileSaveNote("저장됐습니다.");
+    saveButton.textContent = "저장됨";
+    setTimeout(() => {
+      if (!saveButton.disabled) saveButton.textContent = "상태 저장";
+    }, 1200);
   } catch (error) {
     setProfileSaveNote(error.message, true);
   } finally {
     saveButton.disabled = false;
-    saveButton.textContent = "상태 저장";
+    if (saveButton.textContent !== "저장됨") saveButton.textContent = "상태 저장";
   }
 });
 
@@ -1524,7 +1555,9 @@ byId("showcaseForm").addEventListener("submit", async (event) => {
   }
 });
 
-byId("resetDemo").addEventListener("click", () => {
+byId("resetDemo").addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   state = structuredClone(seedState);
   if (currentUser) applyUserToProfile(currentUser);
   saveState();
@@ -1538,6 +1571,20 @@ byId("emailLoginForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const email = byId("emailLoginInput").value.trim();
   if (email) signInWithEmail(email);
+});
+
+byId("roomSelect").addEventListener("change", (event) => {
+  state.activeRoomId = event.target.value;
+  saveActiveRoom();
+  if (remoteReady) {
+    joinRoom(state.activeRoomId)
+      .then(refreshRemote)
+      .catch((error) => alert(error.message));
+  } else {
+    updateMyBuilder();
+    saveState();
+    renderAll();
+  }
 });
 
 window.addEventListener("resize", fitRoomMap);

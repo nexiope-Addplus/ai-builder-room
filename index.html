@@ -72,11 +72,11 @@
           </div>
         </div>
 
-        <section class="panel kiosk-panel">
-          <div class="section-title">
+        <details class="panel kiosk-panel sidebar-section" open>
+          <summary class="section-title">
             <span>입구 키오스크</span>
             <span class="level-cap">DAILY PASS</span>
-          </div>
+          </summary>
           <div class="pass-card">
             <div>
               <span>AI BUILDER PASS</span>
@@ -91,13 +91,13 @@
           </div>
           <div class="usage-bar"><div id="usageBarFill"></div></div>
           <p class="usage-note" id="usageNote">좌석에 앉으면 이용 시간이 기록됩니다.</p>
-        </section>
+        </details>
 
-        <section class="panel profile-panel">
-          <div class="section-title">
+        <details class="panel profile-panel sidebar-section" open>
+          <summary class="section-title">
             <span>내 작업 상태</span>
             <button class="icon-button" id="resetDemo" title="데모 초기화">↻</button>
-          </div>
+          </summary>
           <label>
             닉네임
             <input id="nicknameInput" placeholder="예: Sangwan" />
@@ -123,13 +123,13 @@
           </div>
           <button class="primary-button" id="saveProfile">상태 저장</button>
           <div class="save-note" id="profileSaveNote" aria-live="polite"></div>
-        </section>
+        </details>
 
-        <section class="panel level-panel">
-          <div class="section-title">
+        <details class="panel level-panel sidebar-section">
+          <summary class="section-title">
             <span>빌더 레벨</span>
             <span class="level-cap">MAX 100</span>
-          </div>
+          </summary>
           <div class="level-head">
             <strong id="builderLevel">Lv. 1</strong>
             <span id="builderTitle">New Builder</span>
@@ -146,18 +146,18 @@
             <div><strong id="statSolved">0</strong><span>해결</span></div>
             <div><strong id="statShowcase">0</strong><span>쇼케이스</span></div>
           </div>
-        </section>
+        </details>
 
-        <section class="panel">
-          <div class="section-title">
+        <details class="panel metrics-panel sidebar-section">
+          <summary class="section-title">
             <span>빠른 지표</span>
-          </div>
+          </summary>
           <div class="metrics">
             <div><strong id="metricOnline">0</strong><span>작업자</span></div>
             <div><strong id="metricHelp">0</strong><span>도움 요청</span></div>
             <div><strong id="metricSolved">0%</strong><span>해결률</span></div>
           </div>
-        </section>
+        </details>
       </aside>
 
       <section class="workspace">
@@ -183,16 +183,20 @@
           <section class="floor-directory panel">
             <div class="section-title">
               <span>층별 안내</span>
-              <span class="level-cap">STUDY CAFE MAP</span>
+              <button class="small-button" id="createRoom">새 방</button>
             </div>
             <div class="floor-grid" id="floorGrid"></div>
+            <label class="room-select-row">
+              현재 방
+              <select id="roomSelect"></select>
+            </label>
           </section>
 
           <div class="room-layout">
             <section class="room-list panel">
               <div class="section-title">
                 <span>방 목록</span>
-                <button class="small-button" id="createRoom">새 방</button>
+                <span class="level-cap">층별 안내와 통합됨</span>
               </div>
               <div id="roomsList" class="rooms-list"></div>
             </section>
@@ -226,34 +230,42 @@
                 </div>
               </div>
 
-              <div class="builder-grid" id="builderGrid"></div>
+              <div class="room-main-grid">
+                <div class="map-column">
+                  <div class="builder-grid" id="builderGrid"></div>
 
-              <div class="seat-info" id="seatInfo">
-                <div>
-                  <p class="eyebrow">Selected Seat</p>
-                  <strong id="selectedSeatTitle">좌석을 선택하세요</strong>
-                  <p id="selectedSeatCopy">빈 좌석을 클릭하면 오늘의 작업 좌석으로 사용할 수 있습니다.</p>
+                  <div class="seat-info" id="seatInfo">
+                    <div>
+                      <p class="eyebrow">Selected Seat</p>
+                      <strong id="selectedSeatTitle">좌석을 선택하세요</strong>
+                      <p id="selectedSeatCopy">빈 좌석을 클릭하면 오늘의 작업 좌석으로 사용할 수 있습니다.</p>
+                    </div>
+                    <div class="seat-action-group">
+                      <span class="seat-state-pill" id="selectedSeatStatus">입장 가능</span>
+                      <button class="primary-button" id="sitSeatButton">이 자리에 앉기</button>
+                    </div>
+                  </div>
                 </div>
-                <button class="primary-button" id="sitSeatButton">이 자리에 앉기</button>
-              </div>
 
-              <div class="room-bottom">
-                <section>
-                  <div class="section-title">
-                    <span>방 안 도움 요청</span>
-                  </div>
-                  <div id="roomHelpList" class="compact-list"></div>
-                </section>
-                <section>
-                  <div class="section-title">
-                    <span>작업 채팅</span>
-                  </div>
-                  <div id="chatList" class="chat-list"></div>
-                  <form id="chatForm" class="inline-form">
-                    <input id="chatInput" placeholder="짧게 공유하기" />
-                    <button class="small-button">전송</button>
-                  </form>
-                </section>
+                <aside class="room-side-panel">
+                  <section>
+                    <div class="section-title">
+                      <span>방 안 도움 요청</span>
+                      <button class="small-button" data-open-modal="helpModal">요청</button>
+                    </div>
+                    <div id="roomHelpList" class="compact-list"></div>
+                  </section>
+                  <section>
+                    <div class="section-title">
+                      <span>작업 채팅</span>
+                    </div>
+                    <div id="chatList" class="chat-list"></div>
+                    <form id="chatForm" class="inline-form">
+                      <input id="chatInput" placeholder="짧게 공유하기" />
+                      <button class="small-button">전송</button>
+                    </form>
+                  </section>
+                </aside>
               </div>
             </section>
           </div>
