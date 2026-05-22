@@ -2394,9 +2394,17 @@ button:disabled {
   }
 }
 
+@media (min-width: 721px) {
+  #roomsView .flow-guide,
+  .notice-board,
+  .room-map-header {
+    display: none;
+  }
+}
+
 @media (min-width: 1121px) {
   .room-main-grid {
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 240px;
   }
 
   .room-side-panel {

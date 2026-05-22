@@ -950,7 +950,7 @@ function fitRoomMap() {
   const gridTop = grid.getBoundingClientRect().top;
   const viewportReserve = window.matchMedia("(min-width: 721px)").matches ? 106 : 0;
   const availableHeight = Math.max(300, window.innerHeight - gridTop - viewportReserve);
-  const scale = Math.min(1.42, grid.clientWidth / roomWidth, availableHeight / roomHeight);
+  const scale = Math.min(1.7, grid.clientWidth / roomWidth, availableHeight / roomHeight);
   const fittedHeight = Math.ceil(roomHeight * scale);
   room.style.transform = `scale(${scale})`;
   room.style.marginLeft = `${Math.max(0, Math.floor((grid.clientWidth - roomWidth * scale) / 2))}px`;
