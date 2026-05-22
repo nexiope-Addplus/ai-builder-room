@@ -77,112 +77,133 @@ alter table public.questions enable row level security;
 alter table public.showcases enable row level security;
 alter table public.chats enable row level security;
 
+drop policy if exists "profiles are visible to signed-in users" on public.profiles;
 create policy "profiles are visible to signed-in users"
   on public.profiles for select
   to authenticated
   using (true);
 
+drop policy if exists "users create their own profile" on public.profiles;
 create policy "users create their own profile"
   on public.profiles for insert
   to authenticated
   with check (auth.uid() = id);
 
+drop policy if exists "users update their own profile" on public.profiles;
 create policy "users update their own profile"
   on public.profiles for update
   to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
+drop policy if exists "rooms are visible to signed-in users" on public.rooms;
 create policy "rooms are visible to signed-in users"
   on public.rooms for select
   to authenticated
   using (true);
 
+drop policy if exists "signed-in users create rooms" on public.rooms;
 create policy "signed-in users create rooms"
   on public.rooms for insert
   to authenticated
   with check (auth.uid() = created_by);
 
+drop policy if exists "room creators update rooms" on public.rooms;
 create policy "room creators update rooms"
   on public.rooms for update
   to authenticated
   using (auth.uid() = created_by)
   with check (auth.uid() = created_by);
 
+drop policy if exists "room members are visible to signed-in users" on public.room_members;
 create policy "room members are visible to signed-in users"
   on public.room_members for select
   to authenticated
   using (true);
 
+drop policy if exists "users join rooms as themselves" on public.room_members;
 create policy "users join rooms as themselves"
   on public.room_members for insert
   to authenticated
   with check (auth.uid() = user_id);
 
+drop policy if exists "users move their own room seat" on public.room_members;
 create policy "users move their own room seat"
   on public.room_members for update
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "users leave their own room" on public.room_members;
 create policy "users leave their own room"
   on public.room_members for delete
   to authenticated
   using (auth.uid() = user_id);
 
+drop policy if exists "help requests are visible to signed-in users" on public.help_requests;
 create policy "help requests are visible to signed-in users"
   on public.help_requests for select
   to authenticated
   using (true);
 
+drop policy if exists "signed-in users create help requests" on public.help_requests;
 create policy "signed-in users create help requests"
   on public.help_requests for insert
   to authenticated
   with check (auth.uid() = user_id);
 
+drop policy if exists "owners update their help requests" on public.help_requests;
 create policy "owners update their help requests"
   on public.help_requests for update
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "questions are visible to signed-in users" on public.questions;
 create policy "questions are visible to signed-in users"
   on public.questions for select
   to authenticated
   using (true);
 
+drop policy if exists "signed-in users create questions" on public.questions;
 create policy "signed-in users create questions"
   on public.questions for insert
   to authenticated
   with check (auth.uid() = user_id);
 
+drop policy if exists "owners update their questions" on public.questions;
 create policy "owners update their questions"
   on public.questions for update
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "showcases are visible to signed-in users" on public.showcases;
 create policy "showcases are visible to signed-in users"
   on public.showcases for select
   to authenticated
   using (true);
 
+drop policy if exists "signed-in users create showcases" on public.showcases;
 create policy "signed-in users create showcases"
   on public.showcases for insert
   to authenticated
   with check (auth.uid() = user_id);
 
+drop policy if exists "owners update their showcases" on public.showcases;
 create policy "owners update their showcases"
   on public.showcases for update
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "chats are visible to signed-in users" on public.chats;
 create policy "chats are visible to signed-in users"
   on public.chats for select
   to authenticated
   using (true);
 
+drop policy if exists "signed-in users create chats" on public.chats;
 create policy "signed-in users create chats"
   on public.chats for insert
   to authenticated
