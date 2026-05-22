@@ -614,26 +614,37 @@ function renderToolPicker(pickerId, input, selectedValue = "") {
   const selected = new Set(parseTools(selectedValue));
   input.value = [...selected].join(", ");
   picker.innerHTML = `
-    <div class="tool-summary">${selected.size ? escapeHtml([...selected].join(", ")) : "도구를 선택하세요"}</div>
-    <div class="tool-options">
-      ${toolOptions
-        .map(
-          (tool) => `
-            <label class="tool-option">
-              <input type="checkbox" value="${escapeHtml(tool)}" ${selected.has(tool) ? "checked" : ""} />
-              ${escapeHtml(tool)}
-            </label>
-          `
-        )
-        .join("")}
-    </div>
+    <details class="tool-dropdown">
+      <summary>
+        <span class="tool-summary">${escapeHtml(formatToolSummary([...selected]))}</span>
+        <span class="tool-chevron">⌄</span>
+      </summary>
+      <div class="tool-options">
+        ${toolOptions
+          .map(
+            (tool) => `
+              <label class="tool-option">
+                <input type="checkbox" value="${escapeHtml(tool)}" ${selected.has(tool) ? "checked" : ""} />
+                <span>${escapeHtml(tool)}</span>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+    </details>
   `;
+}
+
+function formatToolSummary(selected) {
+  if (!selected.length) return "도구를 선택하세요";
+  if (selected.length <= 3) return selected.join(", ");
+  return `${selected.slice(0, 3).join(", ")} 외 ${selected.length - 3}개`;
 }
 
 function refreshToolPicker(picker, input) {
   const selected = [...picker.querySelectorAll("input:checked")].map((item) => item.value);
   input.value = selected.join(", ");
-  picker.querySelector(".tool-summary").textContent = selected.length ? selected.join(", ") : "도구를 선택하세요";
+  picker.querySelector(".tool-summary").textContent = formatToolSummary(selected);
 }
 
 function syncModalToolPickers() {
@@ -1154,10 +1165,14 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  document.querySelectorAll(".tool-dropdown[open]").forEach((dropdown) => {
+    if (!dropdown.contains(event.target)) dropdown.removeAttribute("open");
+  });
+
   const toolInput = event.target.closest(".tool-picker input[type='checkbox']");
   if (toolInput) {
     const picker = toolInput.closest(".tool-picker");
-    const hiddenInput = picker.closest("label")?.querySelector("input[type='hidden']");
+    const hiddenInput = picker.closest(".field-label")?.querySelector("input[type='hidden']");
     if (hiddenInput) refreshToolPicker(picker, hiddenInput);
     return;
   }
