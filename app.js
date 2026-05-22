@@ -281,6 +281,7 @@ function formatDuration(seconds) {
 }
 
 function hasSeatTimeLeft() {
+  if (isAdmin()) return true;
   return getUsageSeconds() < dailySeatLimitSeconds;
 }
 
@@ -1276,17 +1277,20 @@ function renderFlowGuide() {
 
 function renderUsagePass() {
   const used = getUsageSeconds();
-  const percent = Math.min(100, Math.round((used / dailySeatLimitSeconds) * 100));
+  const admin = isAdmin();
+  const percent = admin ? 100 : Math.min(100, Math.round((used / dailySeatLimitSeconds) * 100));
   const today = new Date();
   byId("passDate").textContent = today.toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" });
   byId("passGoal").textContent = state.profile.goal || "오늘의 목표를 입력하고 좌석을 선택하세요.";
-  byId("usageToday").textContent = `${formatDuration(used)} / 5시간`;
+  byId("usageToday").textContent = admin ? `${formatDuration(used)} · 무제한` : `${formatDuration(used)} / 5시간`;
   byId("usageBarFill").style.width = `${percent}%`;
-  byId("usageNote").textContent = hasSeatTimeLeft()
-    ? isSeatCheckedIn
-      ? "좌석 이용 중입니다. 1분 단위로 시간이 기록됩니다."
-      : "좌석에 앉으면 이용 시간이 기록됩니다."
-    : "오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.";
+  byId("usageNote").textContent = admin
+    ? "관리자 계정은 좌석 시간 제한 없이 이용할 수 있습니다."
+    : hasSeatTimeLeft()
+      ? isSeatCheckedIn
+        ? "좌석 이용 중입니다. 1분 단위로 시간이 기록됩니다."
+        : "좌석에 앉으면 이용 시간이 기록됩니다."
+      : "오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.";
 }
 
 function renderSelectedSeat() {
