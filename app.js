@@ -62,6 +62,10 @@ const toolOptions = [
   "Cloudflare"
 ];
 const authConfig = window.AI_BUILDER_CONFIG || {};
+// Fallback: If oauthProviders is empty/undefined (e.g. cached config.js), default to github & google
+if (!authConfig.oauthProviders || authConfig.oauthProviders.length === 0) {
+  authConfig.oauthProviders = ["github", "google"];
+}
 const authReady = Boolean(authConfig.supabaseUrl && authConfig.supabaseAnonKey && window.supabase);
 const authClient = authReady ? window.supabase.createClient(authConfig.supabaseUrl, authConfig.supabaseAnonKey) : null;
 let currentUser = null;
@@ -336,7 +340,10 @@ function showApp() {
 }
 
 function syncOAuthButtons() {
-  const providers = new Set(authConfig.oauthProviders || []);
+  const oauthProviders = authConfig.oauthProviders && authConfig.oauthProviders.length > 0
+    ? authConfig.oauthProviders
+    : ["github", "google"];
+  const providers = new Set(oauthProviders);
   byId("githubLogin").classList.toggle("is-hidden", !providers.has("github"));
   byId("googleLogin").classList.toggle("is-hidden", !providers.has("google"));
   byId("authActions").classList.toggle("is-hidden", providers.size === 0);
