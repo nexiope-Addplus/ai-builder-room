@@ -12,7 +12,7 @@ begin
         and char_length(btrim(category)) between 1 and 40
         and char_length(btrim(status)) between 1 and 40
         and char_length(coalesce(tools, '')) <= 240
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'profiles_allowed_values') then
@@ -21,7 +21,7 @@ begin
       check (
         category in ('Vibe Coding', 'App Building', 'Design', 'Automation', 'Prompt / Workflow', 'Showcase')
         and status in ('집중 중', '질문 가능', '도움 필요', '커피챗 가능', '쉬는 중', '데모 준비 중')
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'rooms_text_bounds') then
@@ -30,7 +30,7 @@ begin
       check (
         char_length(btrim(name)) between 1 and 80
         and category in ('Vibe Coding', 'App Building', 'Design', 'Automation', 'Prompt / Workflow', 'Showcase')
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'help_requests_text_bounds') then
@@ -42,7 +42,7 @@ begin
         and char_length(coalesce(tools, '')) <= 240
         and category in ('Vibe Coding', 'App Building', 'Design', 'Automation', 'Prompt / Workflow', 'Showcase')
         and help_type in ('디버깅', '프롬프트 개선', '구조 설계', '디자인 피드백', '자동화 로직', '배포/연동')
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'questions_text_bounds') then
@@ -53,7 +53,7 @@ begin
         and char_length(btrim(body)) between 1 and 2000
         and char_length(coalesce(tools, '')) <= 240
         and category in ('Vibe Coding', 'App Building', 'Design', 'Automation', 'Prompt / Workflow', 'Showcase')
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'showcases_text_bounds') then
@@ -66,13 +66,13 @@ begin
         and char_length(coalesce(url, '')) <= 500
         and (url is null or url = '' or url ~* '^https?://[^[:space:]]+$')
         and category in ('Vibe Coding', 'App Building', 'Design', 'Automation', 'Prompt / Workflow', 'Showcase')
-      );
+      ) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'chats_body_bounds') then
     alter table public.chats
       add constraint chats_body_bounds
-      check (char_length(btrim(body)) between 1 and 240);
+      check (char_length(btrim(body)) between 1 and 240) not valid;
   end if;
 end $$;
 
