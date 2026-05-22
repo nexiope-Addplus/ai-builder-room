@@ -948,7 +948,7 @@ function fitRoomMap() {
   if (!grid || !room) return;
   const roomWidth = 760;
   const roomHeight = 560;
-  const scale = Math.min(1, grid.clientWidth / roomWidth);
+  const scale = Math.min(1.42, grid.clientWidth / roomWidth);
   const fittedHeight = Math.ceil(roomHeight * scale);
   room.style.transform = `scale(${scale})`;
   grid.style.height = `${fittedHeight}px`;
