@@ -378,7 +378,8 @@ function defaultProfileFromUser(user) {
     goal: "오늘의 목표 미정",
     category: "Vibe Coding",
     status: "질문 가능",
-    tools: "Claude Code, GPT"
+    tools: "Claude Code, GPT",
+    role: "user"
   };
 }
 
@@ -401,8 +402,13 @@ function fromProfileRow(row) {
     goal: row.goal || "오늘의 목표 미정",
     category: row.category || "Vibe Coding",
     status: row.status || "질문 가능",
-    tools: row.tools || "도구 미지정"
+    tools: row.tools || "도구 미지정",
+    role: row.role || "user"
   };
+}
+
+function isAdmin() {
+  return state.profile?.role === "admin";
 }
 
 function mapHelp(row) {
@@ -1112,6 +1118,7 @@ function renderHelp() {
             <div class="card-actions">
               <button class="small-button" data-help-action="offer" data-help-id="${escapeHtml(help.id)}">도울게요</button>
               <button class="small-button" data-help-action="solve" data-help-id="${escapeHtml(help.id)}" ${help.solved || !canSolve ? "disabled" : ""}>해결됨</button>
+              ${adminDeleteButton("help_requests", help.id)}
             </div>
           </article>
         `;
@@ -1132,6 +1139,7 @@ function renderChats() {
         (chat) => `
           <article class="chat-item">
             <p><strong>${escapeHtml(chat.name)}</strong> ${escapeHtml(chat.text)}</p>
+            ${isAdmin() ? `<div class="card-actions">${adminDeleteButton("chats", chat.id)}</div>` : ""}
           </article>
         `
       )
@@ -1154,6 +1162,7 @@ function renderQuestions() {
           </div>
           <div class="card-actions">
             <button class="small-button" data-question-action="solve" data-question-id="${escapeHtml(question.id)}" ${question.solved || !canSolve ? "disabled" : ""}>해결됨</button>
+            ${adminDeleteButton("questions", question.id)}
           </div>
         </article>
       `;
@@ -1173,10 +1182,23 @@ function renderShowcases() {
             <span class="tag">${escapeHtml(item.category)}</span>
             <span class="tag">${escapeHtml(item.tools || "도구 미지정")}</span>
           </div>
+          ${isAdmin() ? `<div class="card-actions">${adminDeleteButton("showcases", item.id)}</div>` : ""}
         </article>
       `
     )
     .join("");
+}
+
+function adminDeleteButton(table, id) {
+  if (!isAdmin() || !id) return "";
+  return `<button class="small-button admin-delete" data-admin-delete-table="${escapeHtml(table)}" data-admin-delete-id="${escapeHtml(id)}" title="관리자 삭제">🗑️ 삭제</button>`;
+}
+
+async function adminDeleteRow(table, id) {
+  if (!remoteReady) return;
+  const { error } = await authClient.from(table).delete().eq("id", id);
+  if (error) throw error;
+  await loadRemoteState();
 }
 
 function renderCoffeeMatches() {
@@ -1226,7 +1248,14 @@ function renderProfilePreview() {
   const category = byId("categoryInput")?.value || state.profile.category;
   const status = byId("statusInput")?.value || state.profile.status;
   const tools = formatToolSummary(parseTools(byId("toolsInput")?.value || state.profile.tools));
-  byId("profilePreview").textContent = `${status || "상태 미정"} · ${category || "카테고리 미정"} · ${tools}`;
+  const preview = byId("profilePreview");
+  preview.textContent = `${status || "상태 미정"} · ${category || "카테고리 미정"} · ${tools}`;
+  if (isAdmin()) {
+    const badge = document.createElement("span");
+    badge.className = "admin-badge";
+    badge.textContent = "관리자";
+    preview.appendChild(badge);
+  }
 }
 
 function renderFlowGuide() {
@@ -1473,6 +1502,23 @@ document.addEventListener("click", (event) => {
     if (builderId) {
       showBuilderCard(builderId);
     }
+    return;
+  }
+
+  const adminDelete = event.target.closest("[data-admin-delete-id]");
+  if (adminDelete) {
+    if (!isAdmin()) return;
+    const table = adminDelete.dataset.adminDeleteTable;
+    const id = adminDelete.dataset.adminDeleteId;
+    const labels = { chats: "이 채팅", help_requests: "이 도움 요청", questions: "이 질문", showcases: "이 쇼케이스" };
+    if (!confirm(`${labels[table] || "이 글"}을(를) 영구 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    adminDelete.disabled = true;
+    adminDeleteRow(table, id)
+      .then(() => renderAll())
+      .catch((error) => alert(`삭제 실패: ${error.message}`))
+      .finally(() => {
+        adminDelete.disabled = false;
+      });
     return;
   }
 
