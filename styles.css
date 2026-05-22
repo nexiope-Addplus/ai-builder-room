@@ -953,14 +953,19 @@ button:disabled {
 }
 
 .capacity {
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   min-width: 58px;
   height: 42px;
+  padding: 0 10px;
   border-radius: 8px;
   background: rgba(74, 124, 110, 0.13);
   color: var(--green);
   font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .builder-grid {
