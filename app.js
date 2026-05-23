@@ -1091,7 +1091,6 @@ function renderBuilders() {
   const occupants = new Map();
   const visibleSeats = seatPlan.slice(0, room.limit);
   const validSeats = new Set(visibleSeats.map((seat) => seat.id));
-  const waitingBuilders = [];
   builders.forEach((builder) => {
     const fallbackSeatId =
       builder.id === (currentUser?.id || "me") && isSeatCheckedIn && selectedSeatId
@@ -1100,17 +1099,8 @@ function renderBuilders() {
     const seatId = builder.seatId || fallbackSeatId;
     if (seatId && validSeats.has(seatId) && !occupants.has(seatId)) {
       occupants.set(seatId, builder);
-    } else if (!seatColumnReady) {
-      waitingBuilders.push(builder);
     }
   });
-  if (!seatColumnReady) {
-    visibleSeats.forEach((seat) => {
-      if (occupants.has(seat.id)) return;
-      const nextBuilder = waitingBuilders.shift();
-      if (nextBuilder) occupants.set(seat.id, nextBuilder);
-    });
-  }
 
   byId("builderGrid").innerHTML = `
     <div class="cafe-room game-room ${themeClass}">
