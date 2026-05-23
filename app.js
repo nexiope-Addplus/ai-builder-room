@@ -1019,6 +1019,14 @@ function seatedBuilders(builders = state.builders) {
   return builders.filter((builder) => Boolean(builder.seatId));
 }
 
+function roomStats(roomId) {
+  const builders = roomBuilders(roomId);
+  return {
+    entered: builders.length,
+    seated: seatedBuilders(builders).length
+  };
+}
+
 function syncProfileInputs(force = false) {
   if (!force && document.activeElement?.closest(".profile-panel")) {
     syncModalToolPickers();
@@ -1046,11 +1054,11 @@ function renderRooms() {
   const filteredRooms = state.rooms.filter((room) => room.category === active.category);
   byId("roomsList").innerHTML = filteredRooms
     .map((room) => {
-      const count = roomBuilders(room.id).length;
+      const stats = roomStats(room.id);
       return `
         <button class="room-card ${room.id === active.id ? "active" : ""}" data-room-id="${room.id}">
           <strong>${escapeHtml(room.name)}</strong>
-          <span>${escapeHtml(room.category)} · ${count}/${room.limit}</span>
+          <span>${escapeHtml(room.category)} · ${stats.entered}명 입장 · ${stats.seated}/${room.limit} 착석</span>
         </button>
       `;
     })
@@ -1058,8 +1066,8 @@ function renderRooms() {
   document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
     roomSelect.innerHTML = state.rooms
       .map((room) => {
-        const count = roomBuilders(room.id).length;
-        return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(room.name)} · ${count}/${room.limit}</option>`;
+        const stats = roomStats(room.id);
+        return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(room.name)} · ${stats.seated}/${room.limit} 착석 · ${stats.entered}명 입장</option>`;
       })
       .join("");
   });
@@ -1082,9 +1090,9 @@ function renderFloors() {
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
       const roomStatus = floorRooms
         .map((floorRoom, index) => {
-          const count = roomBuilders(floorRoom.id).length;
-          const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${count}/${floorRoom.limit}">${escapeHtml(floorGuideRoomNumber(floorRoom.name, floor.floor, index))}</span>`;
+          const stats = roomStats(floorRoom.id);
+          const roomClass = floorRoom.id === active?.id ? "active" : stats.seated >= floorRoom.limit ? "full" : stats.seated > 0 ? "used" : "";
+          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(floorGuideRoomNumber(floorRoom.name, floor.floor, index))}</span>`;
         })
         .join("");
       
@@ -1230,7 +1238,7 @@ function fitRoomMap() {
   const roomWidth = 760;
   const roomHeight = 560;
   const gridTop = grid.getBoundingClientRect().top;
-  const viewportReserve = window.matchMedia("(min-width: 721px)").matches ? 106 : 0;
+  const viewportReserve = window.matchMedia("(min-width: 721px)").matches ? 150 : 0;
   const availableHeight = Math.max(300, window.innerHeight - gridTop - viewportReserve);
   const scale = Math.min(2.4, grid.clientWidth / roomWidth, availableHeight / roomHeight);
   const fittedHeight = Math.ceil(roomHeight * scale);
