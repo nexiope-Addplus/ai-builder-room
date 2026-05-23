@@ -1226,21 +1226,23 @@ function renderFloors() {
       const room = floorRooms[0];
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
-      const roomStatus = floorRooms
-        .map((floorRoom, index) => {
+      const slots = [];
+      for (let index = 0; index < 3; index++) {
+        const floorRoom = floorRooms[index];
+        if (floorRoom) {
           const stats = roomStats(floorRoom.id);
           const roomClass = floorRoom.id === active?.id ? "active" : stats.seated >= floorRoom.limit ? "full" : stats.seated > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(roomDisplayName(floorRoom))} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(roomDisplayName(floorRoom))}</span>`;
-        })
-        .join("");
-      
-      let statusDot = `<span class="floor-room-status empty">호실 없음</span>`;
-      if (floor.category === "Showcase") {
-        const itemCount = state.showcases ? state.showcases.length : 0;
-        statusDot = `<span class="floor-room-status showcase">전시 ${itemCount}개</span>`;
-      } else if (roomStatus) {
-        statusDot = `<span class="floor-room-status">${roomStatus}</span>`;
+          slots.push(`<span class="floor-room-chip ${roomClass}" title="${escapeHtml(roomDisplayName(floorRoom))} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(roomDisplayName(floorRoom))}</span>`);
+        } else {
+          const placeholderLabel = floorGuideRoomNumber("", floor.floor, index);
+          slots.push(`<span class="floor-room-chip pending" title="DB에 아직 방이 없습니다. supabase-seed-rooms.sql 실행 권장.">${escapeHtml(placeholderLabel)}</span>`);
+        }
       }
+      const roomStatus = slots.join("");
+      const statusDot = `<span class="floor-room-status">${roomStatus}</span>`;
+      const showcaseBadge = floor.category === "Showcase"
+        ? `<span class="floor-room-status showcase">전시 ${state.showcases ? state.showcases.length : 0}개</span>`
+        : "";
       
       return `
         <button class="floor-card ${isActive ? "active" : ""}" data-floor-room-id="${escapeHtml(room?.id || "")}" data-floor-view="${escapeHtml(viewTarget)}" ${room || viewTarget ? "" : "disabled"}>
@@ -1249,6 +1251,7 @@ function renderFloors() {
             <span class="floor-name">${escapeHtml(floor.name)}</span>
           </div>
           ${statusDot}
+          ${showcaseBadge}
           <span class="floor-note">${escapeHtml(floor.note)}</span>
         </button>
       `;
