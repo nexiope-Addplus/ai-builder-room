@@ -631,7 +631,7 @@ async function loadRemoteState() {
   ]);
   let membersRes = await authClient
     .from("room_members")
-    .select("room_id, seat_id, profiles(id,nickname,goal,category,status,tools)")
+    .select("room_id, seat_id, updated_at, profiles(id,nickname,goal,category,status,tools)")
     .order("updated_at", { ascending: false });
   if (membersRes.error && isMissingSeatColumnError(membersRes.error)) {
     seatColumnReady = false;
@@ -667,7 +667,8 @@ async function loadRemoteState() {
       status: member.profiles.status || "질문 가능",
       goal: member.profiles.goal || "오늘의 목표 미정",
       tools: member.profiles.tools || "도구 미지정",
-      seatId: member.seat_id || ""
+      seatId: member.seat_id || "",
+      updatedAt: member.updated_at || ""
     }));
   state.helps = helpsRes.data.map(mapHelp);
   state.questions = questionsRes.data.map(mapQuestion);
@@ -1017,6 +1018,43 @@ function roomBuilders(roomId = state.activeRoomId) {
 
 function seatedBuilders(builders = state.builders) {
   return builders.filter((builder) => Boolean(builder.seatId));
+}
+
+function builderSeatTime(builder) {
+  const isMe = builder?.id === "me" || (currentUser && builder?.id === currentUser.id);
+  if (isMe) {
+    const used = getUsageSeconds();
+    return {
+      label: isAdmin() ? "무제한" : `${formatDuration(Math.max(0, dailySeatLimitSeconds - used))} 남음`,
+      detail: isAdmin() ? "관리자 계정은 시간 제한이 없습니다." : `오늘 ${formatDuration(used)} 사용`,
+      percent: isAdmin() ? 100 : Math.max(0, Math.min(100, Math.round(((dailySeatLimitSeconds - used) / dailySeatLimitSeconds) * 100)))
+    };
+  }
+
+  if (!builder?.seatId) {
+    return {
+      label: "좌석 미선택",
+      detail: "방에는 입장했지만 아직 좌석에 앉지 않았습니다.",
+      percent: 0
+    };
+  }
+
+  const updatedAt = builder.updatedAt ? new Date(builder.updatedAt).getTime() : 0;
+  if (!updatedAt || Number.isNaN(updatedAt)) {
+    return {
+      label: "착석 중",
+      detail: "남은 시간은 좌석 갱신 후 표시됩니다.",
+      percent: 100
+    };
+  }
+
+  const elapsed = Math.max(0, Math.floor((Date.now() - updatedAt) / 1000));
+  const remaining = Math.max(0, dailySeatLimitSeconds - elapsed);
+  return {
+    label: `${formatDuration(remaining)} 남음`,
+    detail: "상대방의 좌석 갱신 시각 기준 추정입니다.",
+    percent: Math.max(0, Math.min(100, Math.round((remaining / dailySeatLimitSeconds) * 100)))
+  };
 }
 
 function roomStats(roomId) {
@@ -2769,7 +2807,9 @@ function showBuilderCard(builderId) {
     goal: state.profile.goal || "오늘의 목표 미정",
     category: state.profile.category || "Vibe Coding",
     status: state.profile.status || "집중 중",
-    tools: state.profile.tools || "Claude"
+    tools: state.profile.tools || "Claude",
+    seatId: checkedInSeatId() || "",
+    updatedAt: new Date().toISOString()
   } : null);
   
   if (!builder) return;
@@ -2793,6 +2833,11 @@ function showBuilderCard(builderId) {
   byId("cardXpDisplay").textContent = `${stats.xp.toLocaleString()} XP`;
   byId("cardNextXpDisplay").textContent = levelInfo.level >= 100 ? "Max" : `다음 레벨까지 ${(levelInfo.next - levelInfo.intoLevel).toLocaleString()} XP`;
   byId("cardXpBarFill").style.width = `${levelInfo.progress}%`;
+
+  const seatTime = builderSeatTime(builder);
+  byId("cardSeatTimeDisplay").textContent = seatTime.label;
+  byId("cardSeatTimeDetail").textContent = seatTime.detail;
+  byId("cardSeatTimeBarFill").style.width = `${seatTime.percent}%`;
   
   byId("cardGoal").textContent = builder.goal || "목표가 지정되지 않았습니다.";
   

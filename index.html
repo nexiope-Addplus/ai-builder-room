@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=1.0.11" />
+    <link rel="stylesheet" href="./styles.css?v=1.0.12" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -628,6 +628,15 @@
               <div class="xp-bar"><div id="cardXpBarFill"></div></div>
             </div>
 
+            <div class="card-time-section">
+              <div class="xp-row">
+                <span>좌석 이용 시간</span>
+                <span id="cardSeatTimeDisplay">5시간 00분 남음</span>
+              </div>
+              <div class="usage-bar"><div id="cardSeatTimeBarFill"></div></div>
+              <p id="cardSeatTimeDetail">오늘 좌석 이용 가능 시간입니다.</p>
+            </div>
+
             <div class="card-goal-section">
               <strong>🎯 오늘의 목표</strong>
               <p id="cardGoal">오늘의 목표 미정</p>
@@ -673,6 +682,6 @@
       crossorigin="anonymous"
     ></script>
     <script src="./config.js?v=1.0.8"></script>
-    <script src="./app.js?v=1.0.11"></script>
+    <script src="./app.js?v=1.0.12"></script>
   </body>
 </html>

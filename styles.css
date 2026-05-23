@@ -3775,11 +3775,25 @@ button:disabled {
   color: var(--blue);
   border: 1px solid rgba(49, 95, 114, 0.15);
 }
-.card-xp-section {
+.card-xp-section,
+.card-time-section {
   background: var(--surface-strong);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+.card-time-section .usage-bar {
+  height: 8px;
+  margin-top: 8px;
+}
+
+.card-time-section p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 .card-goal-section,
 .card-tools-section,
