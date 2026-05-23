@@ -1032,10 +1032,26 @@ function renderBuilders() {
   const themeClass = roomThemeClass(room.category);
   const themeLabel = roomThemeLabel(room.category);
   const occupants = new Map();
-  const validSeats = new Set(seatPlan.slice(0, room.limit).map((seat) => seat.id));
+  const visibleSeats = seatPlan.slice(0, room.limit);
+  const validSeats = new Set(visibleSeats.map((seat) => seat.id));
+  const waitingBuilders = [];
   builders.forEach((builder) => {
-    if (builder.seatId && validSeats.has(builder.seatId) && !occupants.has(builder.seatId)) {
-      occupants.set(builder.seatId, builder);
+    const fallbackSeatId =
+      builder.id === (currentUser?.id || "me") && isSeatCheckedIn && selectedSeatId
+        ? selectedSeatId
+        : "";
+    const seatId = builder.seatId || fallbackSeatId;
+    if (seatId && validSeats.has(seatId) && !occupants.has(seatId)) {
+      occupants.set(seatId, builder);
+    } else {
+      waitingBuilders.push(builder);
+    }
+  });
+  visibleSeats.forEach((seat) => {
+    if (occupants.has(seat.id)) return;
+    const nextBuilder = waitingBuilders.shift();
+    if (nextBuilder) {
+      occupants.set(seat.id, nextBuilder);
     }
   });
 
