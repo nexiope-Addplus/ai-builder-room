@@ -508,8 +508,31 @@ function mapChat(row) {
     roomId: row.room_id,
     userId: row.user_id,
     name: row.profiles?.nickname || "익명",
-    text: row.body
+    text: row.body,
+    createdAt: row.created_at
   };
+}
+
+function inferSeatIdsFromChats(chats = state.chats) {
+  const inferredSeats = new Map();
+  chats.forEach((chat) => {
+    const match = String(chat.text || "").match(/\b([ABC][1-4])\s*좌석에 입장했습니다/);
+    if (!match || !chat.userId || !chat.roomId) return;
+    if (chat.createdAt && String(chat.createdAt).slice(0, 10) !== todayKey()) return;
+    inferredSeats.set(`${chat.roomId}:${chat.userId}`, match[1]);
+  });
+  return inferredSeats;
+}
+
+function applyInferredSeatsFromChats() {
+  const inferredSeats = inferSeatIdsFromChats();
+  if (!inferredSeats.size) return;
+  state.builders = state.builders.map((builder) => {
+    if (builder.seatId) return builder;
+    const inferredSeatId = inferredSeats.get(`${builder.roomId}:${builder.id}`);
+    if (!inferredSeatId || !seatPlan.some((seat) => seat.id === inferredSeatId)) return builder;
+    return { ...builder, seatId: inferredSeatId };
+  });
 }
 
 async function signInWithProvider(provider) {
@@ -593,7 +616,7 @@ async function loadRemoteState() {
     authClient.from("help_requests").select("*").order("created_at", { ascending: false }),
     authClient.from("questions").select("*").order("created_at", { ascending: false }),
     authClient.from("showcases").select("*").order("created_at", { ascending: false }),
-    authClient.from("chats").select("id, room_id, body, created_at, profiles(nickname)").order("created_at", { ascending: true }).limit(80)
+    authClient.from("chats").select("id, room_id, user_id, body, created_at, profiles(nickname)").order("created_at", { ascending: false }).limit(200)
   ]);
   let membersRes = await authClient
     .from("room_members")
@@ -635,6 +658,12 @@ async function loadRemoteState() {
       tools: member.profiles.tools || "도구 미지정",
       seatId: member.seat_id || ""
     }));
+  state.helps = helpsRes.data.map(mapHelp);
+  state.questions = questionsRes.data.map(mapQuestion);
+  state.showcases = showcasesRes.data.map(mapShowcase);
+  state.chats = chatsRes.data.map(mapChat).reverse();
+  applyInferredSeatsFromChats();
+
   const mySeat = state.builders.find((builder) => builder.id === currentUser.id && builder.roomId === state.activeRoomId)?.seatId;
   if (mySeat && seatPlan.some((seat) => seat.id === mySeat)) {
     selectedSeatId = mySeat;
@@ -642,10 +671,6 @@ async function loadRemoteState() {
     isSeatCheckedIn = true;
     localStorage.setItem("ai-builder-seat-checked-in", todayKey());
   }
-  state.helps = helpsRes.data.map(mapHelp);
-  state.questions = questionsRes.data.map(mapQuestion);
-  state.showcases = showcasesRes.data.map(mapShowcase);
-  state.chats = chatsRes.data.map(mapChat);
 }
 
 function subscribeRemoteChanges() {
@@ -1813,15 +1838,17 @@ byId("sitSeatButton").addEventListener("click", async () => {
   isSeatCheckedIn = true;
   localStorage.setItem("ai-builder-seat-checked-in", todayKey());
   try {
+    const entryMessage = `${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`;
     if (remoteReady) {
       await joinRoom(state.activeRoomId, selectedSeatId);
+      await addRoomChat(entryMessage);
       await loadRemoteState();
     } else {
       updateMyBuilder();
       saveState();
+      await addRoomChat(entryMessage);
     }
     setUsageSeconds(getUsageSeconds() + 60);
-    await addRoomChat(`${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`);
     renderAll();
   } catch (error) {
     alert(`좌석 입장 실패: ${error.message}`);
