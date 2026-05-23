@@ -998,33 +998,28 @@ function renderFloors() {
       const room = floorRooms[0];
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
-      const activeCount = floorRooms.reduce((sum, floorRoom) => sum + roomBuilders(floorRoom.id).length, 0);
-      const roomSummary = floorRooms
+      const roomStatus = floorRooms
         .map((floorRoom) => {
           const count = roomBuilders(floorRoom.id).length;
-          const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}">${escapeHtml(floorRoom.name)} <b>${count}/${floorRoom.limit}</b></span>`;
+          return `${escapeHtml(floorRoom.name)} ${count}/${floorRoom.limit}`;
         })
-        .join("");
+        .join(" · ");
       
-      let statusDot = `<span class="elevator-indicator empty">⚪ 0명</span>`;
+      let statusDot = `<span class="floor-room-status empty">호실 없음</span>`;
       if (floor.category === "Showcase") {
         const itemCount = state.showcases ? state.showcases.length : 0;
-        statusDot = `<span class="elevator-indicator showcase">🏆 ${itemCount}전시</span>`;
-      } else if (activeCount > 0) {
-        const condClass = activeCount >= 4 ? "busy" : "active";
-        const condDot = activeCount >= 4 ? "🟡" : "🟢";
-        statusDot = `<span class="elevator-indicator ${condClass}">${condDot} ${activeCount}명</span>`;
+        statusDot = `<span class="floor-room-status showcase">전시 ${itemCount}개</span>`;
+      } else if (roomStatus) {
+        statusDot = `<span class="floor-room-status">${roomStatus}</span>`;
       }
       
       return `
         <button class="floor-card ${isActive ? "active" : ""}" data-floor-room-id="${escapeHtml(room?.id || "")}" data-floor-view="${escapeHtml(viewTarget)}" ${room || viewTarget ? "" : "disabled"}>
           <div class="floor-card-header">
             <strong>${escapeHtml(floor.floor)}</strong>
-            ${statusDot}
+            <span class="floor-name">${escapeHtml(floor.name)}</span>
           </div>
-          <span class="floor-name">${escapeHtml(floor.name)}</span>
-          ${roomSummary ? `<span class="floor-room-list">${roomSummary}</span>` : ""}
+          ${statusDot}
           <span class="floor-note">${escapeHtml(floor.note)}</span>
         </button>
       `;

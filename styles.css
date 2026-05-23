@@ -848,7 +848,7 @@ button:disabled {
 
 .floor-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(112px, 1fr));
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
   gap: 6px;
 }
 
@@ -861,8 +861,8 @@ button:disabled {
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 94px;
+  gap: 5px;
+  min-height: 66px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
@@ -888,6 +888,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
   width: 100%;
 }
 
@@ -898,54 +899,29 @@ button:disabled {
 }
 
 .floor-name {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--muted);
-}
-
-.floor-room-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
-}
-
-.floor-room-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 3px;
   min-width: 0;
-  padding: 3px 4px;
-  border: 1px solid rgba(30, 37, 40, 0.1);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.58);
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
 }
 
-.floor-room-chip b {
+.floor-room-status {
+  display: block;
   color: var(--ink);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.35;
+  word-break: keep-all;
 }
 
-.floor-room-chip.used {
-  background: rgba(74, 124, 110, 0.12);
-  border-color: rgba(74, 124, 110, 0.22);
-  color: var(--green);
+.floor-room-status.empty {
+  color: var(--muted);
 }
 
-.floor-room-chip.active {
-  background: rgba(49, 95, 114, 0.12);
-  border-color: rgba(49, 95, 114, 0.36);
-  color: var(--blue);
-}
-
-.floor-room-chip.full {
-  background: rgba(201, 129, 94, 0.14);
-  border-color: rgba(201, 129, 94, 0.32);
+.floor-room-status.showcase {
   color: var(--coral);
 }
 
@@ -2778,7 +2754,7 @@ button:disabled {
   }
 
   .floor-card {
-    min-height: 82px;
+    min-height: 58px;
     padding: 6px 8px;
   }
 
@@ -2786,16 +2762,7 @@ button:disabled {
     font-size: 11px;
   }
 
-  .floor-room-list {
-    gap: 2px;
-  }
-
-  .floor-room-chip {
-    padding: 2px 3px;
-    font-size: 8px;
-  }
-
-  .floor-room-chip b {
+  .floor-room-status {
     font-size: 8px;
   }
 
@@ -3003,8 +2970,8 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .floor-room-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .floor-room-status {
+    font-size: 9px;
   }
 
   .topbar-actions {
