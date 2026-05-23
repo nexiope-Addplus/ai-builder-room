@@ -1001,9 +1001,10 @@ function renderFloors() {
       const roomStatus = floorRooms
         .map((floorRoom) => {
           const count = roomBuilders(floorRoom.id).length;
-          return `${escapeHtml(shortRoomNumber(floorRoom.name))} ${count}/${floorRoom.limit}`;
+          const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
+          return `<span class="floor-room-chip ${roomClass}">${escapeHtml(shortRoomNumber(floorRoom.name))} <b>${count}/${floorRoom.limit}</b></span>`;
         })
-        .join(" · ");
+        .join("");
       
       let statusDot = `<span class="floor-room-status empty">호실 없음</span>`;
       if (floor.category === "Showcase") {

@@ -909,12 +909,52 @@ button:disabled {
 }
 
 .floor-room-status {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
   color: var(--ink);
   font-size: 10px;
   font-weight: 900;
   line-height: 1.35;
   word-break: keep-all;
+}
+
+.floor-room-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px solid rgba(30, 37, 40, 0.1);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.floor-room-chip b {
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.floor-room-chip.used {
+  background: rgba(74, 124, 110, 0.12);
+  border-color: rgba(74, 124, 110, 0.24);
+  color: var(--green);
+}
+
+.floor-room-chip.active {
+  background: rgba(49, 95, 114, 0.12);
+  border-color: rgba(49, 95, 114, 0.38);
+  color: var(--blue);
+}
+
+.floor-room-chip.full {
+  background: rgba(201, 129, 94, 0.14);
+  border-color: rgba(201, 129, 94, 0.34);
+  color: var(--coral);
 }
 
 .floor-room-status.empty {
@@ -2763,6 +2803,15 @@ button:disabled {
   }
 
   .floor-room-status {
+    font-size: 8px;
+  }
+
+  .floor-room-chip {
+    padding: 2px 3px;
+    font-size: 8px;
+  }
+
+  .floor-room-chip b {
     font-size: 8px;
   }
 
