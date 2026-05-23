@@ -5213,3 +5213,35 @@ button:disabled {
 [data-theme="dark"] dialog::backdrop {
   background: rgba(10, 12, 30, 0.6);
 }
+
+/* Dark mode — inner cards (help/question/showcase) and chat readability fix */
+[data-theme="dark"] .content-card,
+[data-theme="dark"] .chat-item,
+[data-theme="dark"] .match-item,
+[data-theme="dark"] .compact-item {
+  background: #151a35;
+  border: 1px solid rgba(168, 176, 212, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .content-card h4,
+[data-theme="dark"] .compact-item strong {
+  color: var(--ink);
+}
+[data-theme="dark"] .content-card p,
+[data-theme="dark"] .chat-item p,
+[data-theme="dark"] .compact-item p,
+[data-theme="dark"] .match-item p {
+  color: #c8cee8;
+}
+[data-theme="dark"] .empty-state {
+  background: rgba(108, 199, 224, 0.06);
+  border-color: rgba(108, 199, 224, 0.22);
+  color: var(--muted);
+}
+
+/* Panel description text right under section title */
+[data-theme="dark"] .panel > p,
+[data-theme="dark"] .panel-note,
+[data-theme="dark"] .section-desc {
+  color: #b8c0e0;
+}
