@@ -47,13 +47,25 @@ jobs:
           }
           function parseRSS(xml) {
             const items = [];
-            const matches = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
-            for (const block of matches) {
+            const rssMatches = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
+            for (const block of rssMatches) {
               items.push({
                 title: stripTags(tag(block, "title")),
                 link: tag(block, "link").trim(),
                 description: stripTags(tag(block, "description")),
                 pubDate: tag(block, "pubDate").trim() || tag(block, "dc:date").trim()
+              });
+            }
+            const atomMatches = xml.match(/<entry[\s\S]*?<\/entry>/gi) || [];
+            for (const block of atomMatches) {
+              const linkAttr = block.match(/<link[^>]*href=["']([^"']+)["'][^>]*\/?>/i);
+              const link = linkAttr ? linkAttr[1] : tag(block, "link").trim();
+              const content = tag(block, "content") || tag(block, "summary");
+              items.push({
+                title: stripTags(tag(block, "title")),
+                link: link.trim(),
+                description: stripTags(content),
+                pubDate: tag(block, "published").trim() || tag(block, "updated").trim()
               });
             }
             return items;
