@@ -305,6 +305,11 @@ function selectedSeatIsMine() {
   return selectedSeatButton()?.dataset.builderId === (currentUser?.id || "me");
 }
 
+function seatButtonIsOwnedByOther(seatButton) {
+  const builderId = seatButton?.dataset.builderId || "";
+  return Boolean(builderId && builderId !== (currentUser?.id || "me"));
+}
+
 function checkedInSeatId() {
   return isSeatCheckedIn && selectedSeatId ? selectedSeatId : null;
 }
@@ -1572,6 +1577,12 @@ document.addEventListener("click", (event) => {
 
   const seatButton = event.target.closest("[data-seat-id]");
   if (seatButton) {
+    const builderId = seatButton.dataset.builderId;
+    if (seatButtonIsOwnedByOther(seatButton)) {
+      showBuilderCard(builderId);
+      alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
+      return;
+    }
     selectedSeatId = seatButton.dataset.seatId;
     localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
     document.querySelectorAll(".seat-button").forEach((item) => item.classList.remove("selected"));
@@ -1589,7 +1600,6 @@ document.addEventListener("click", (event) => {
     renderAll();
     
     // Premium feature: Open RPG Holographic card if occupied
-    const builderId = seatButton.dataset.builderId;
     if (builderId) {
       showBuilderCard(builderId);
     }
@@ -1746,6 +1756,10 @@ byId("sitSeatButton").addEventListener("click", async () => {
   }
   if (!selectedSeatId) {
     alert("먼저 앉을 좌석을 선택해주세요.");
+    return;
+  }
+  if (seatButtonIsOwnedByOther(selectedSeatButton())) {
+    alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
     return;
   }
   if (!selectedSeatIsEmpty() && !selectedSeatIsMine()) {
