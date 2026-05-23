@@ -896,17 +896,23 @@ function renderNews() {
     }, 0);
     updatedEl.textContent = latest ? `최근 수집: ${formatRelativeTime(new Date(latest).toISOString())}` : "";
   }
-  list.innerHTML = filtered.map((item) => {
+  list.innerHTML = filtered.map((item, index) => {
     const sourceClass = item.source === "GeekNews" ? "src-geek" : "src-ait";
     const published = item.published_at ? formatRelativeTime(item.published_at) : "시간 미상";
+    const isFresh = item.published_at && (Date.now() - new Date(item.published_at).getTime()) < 6 * 60 * 60 * 1000;
     return `
-      <a class="news-card" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
-        <div class="news-card-head">
-          <span class="news-source ${sourceClass}">${escapeHtml(item.source)}</span>
-          <span class="news-time">${escapeHtml(published)}</span>
+      <a class="news-row ${isFresh ? "fresh" : ""}" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+        <span class="news-index">${String(index + 1).padStart(2, "0")}</span>
+        <span class="news-source ${sourceClass}">${escapeHtml(item.source)}</span>
+        <div class="news-row-body">
+          <div class="news-row-title">
+            ${isFresh ? `<span class="news-fresh-dot" title="6시간 이내 새 글"></span>` : ""}
+            <span>${escapeHtml(item.title)}</span>
+          </div>
+          ${item.summary ? `<div class="news-row-summary">${escapeHtml(shortText(item.summary, 140))}</div>` : ""}
         </div>
-        <h4 class="news-title">${escapeHtml(item.title)}</h4>
-        ${item.summary ? `<p class="news-summary">${escapeHtml(shortText(item.summary, 180))}</p>` : ""}
+        <span class="news-row-time">${escapeHtml(published)}</span>
+        <span class="news-row-arrow">↗</span>
       </a>
     `;
   }).join("");
