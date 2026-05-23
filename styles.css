@@ -5245,3 +5245,85 @@ button:disabled {
 [data-theme="dark"] .section-desc {
   color: #b8c0e0;
 }
+
+/* === Dark mode: auth screen === */
+[data-theme="dark"] .auth-screen {
+  background:
+    radial-gradient(ellipse at top left, rgba(108, 199, 224, 0.18), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(255, 155, 111, 0.18), transparent 50%),
+    linear-gradient(rgba(15, 21, 48, 0.4), rgba(15, 21, 48, 0.6)),
+    linear-gradient(90deg, rgba(168, 176, 212, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(168, 176, 212, 0.04) 1px, transparent 1px),
+    #0f1530;
+  background-size: auto, auto, auto, 44px 44px, 44px 44px, auto;
+}
+[data-theme="dark"] .auth-card {
+  background: linear-gradient(160deg, #1d2342, #20264a);
+  border: 1px solid rgba(168, 176, 212, 0.22);
+  color: var(--ink);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .auth-card .brand h1,
+[data-theme="dark"] .auth-copy h2 {
+  color: var(--ink);
+}
+[data-theme="dark"] .auth-card .brand p,
+[data-theme="dark"] .auth-copy p {
+  color: #c8cee8;
+}
+[data-theme="dark"] .auth-card .brand-mark {
+  background: linear-gradient(135deg, var(--coral), #ff7a52);
+  color: #1a1640;
+}
+[data-theme="dark"] .kiosk-screen {
+  background: #151a35;
+  border-color: rgba(108, 199, 224, 0.3);
+}
+[data-theme="dark"] .kiosk-screen span,
+[data-theme="dark"] .kiosk-screen strong {
+  color: var(--ink);
+}
+[data-theme="dark"] .kiosk-screen span { color: var(--blue); }
+[data-theme="dark"] .auth-kiosk {
+  border-color: #2a2e58;
+  background: linear-gradient(#0f1530 0 26%, #161b3a 26% 31%, #1d2342 31%);
+}
+[data-theme="dark"] .auth-notices span {
+  background: rgba(108, 199, 224, 0.12);
+  border-color: rgba(108, 199, 224, 0.3);
+  color: var(--ink);
+}
+[data-theme="dark"] .auth-separator span {
+  color: var(--muted);
+  background: transparent;
+}
+[data-theme="dark"] .auth-separator::before,
+[data-theme="dark"] .auth-separator::after {
+  background: rgba(168, 176, 212, 0.2);
+}
+[data-theme="dark"] .email-auth input {
+  background: #151a35;
+  color: var(--ink);
+  border-color: rgba(168, 176, 212, 0.22);
+}
+[data-theme="dark"] .auth-warning { color: var(--coral); }
+
+/* === Light mode safety: force readable text on auth card === */
+.auth-card .brand h1,
+.auth-copy h2 { color: var(--ink); }
+.auth-card .brand p { color: var(--muted); }
+
+/* === Auth screen — always light, ignore data-theme === */
+.auth-screen { color-scheme: light; }
+.auth-card,
+.auth-card * {
+  /* Override dark theme custom properties locally */
+  --ink: #1e2528;
+  --muted: #6a7376;
+  --bg: #fffaf2;
+}
+.auth-card .brand h1 { color: #1e2528; }
+.auth-card .brand p { color: #6a7376; }
+.auth-copy h2 { color: #1e2528; }
+.auth-copy p { color: #6a7376; }
+.auth-card { color: #1e2528; }
