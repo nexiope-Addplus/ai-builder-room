@@ -71,6 +71,7 @@ const authClient = authReady ? window.supabase.createClient(authConfig.supabaseU
 let currentUser = null;
 let remoteReady = false;
 let realtimeChannel = null;
+let liveUserIds = new Set();
 let seatColumnReady = true;
 let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
@@ -570,9 +571,11 @@ async function signOut() {
   currentUser = null;
   remoteReady = false;
   if (realtimeChannel) {
+    try { await realtimeChannel.untrack(); } catch (error) { console.error(error); }
     authClient.removeChannel(realtimeChannel);
     realtimeChannel = null;
   }
+  liveUserIds = new Set();
   showAuth();
 }
 
@@ -618,6 +621,7 @@ async function joinRoom(roomId = state.activeRoomId, seatId = null) {
     throw new Error("방금 다른 사용자가 이 좌석을 선택했습니다. 비어 있는 다른 좌석을 선택해주세요.");
   }
   if (error) throw error;
+  trackMyPresence();
 }
 
 async function loadRemoteState() {
@@ -688,7 +692,7 @@ async function loadRemoteState() {
 function subscribeRemoteChanges() {
   if (!remoteReady || realtimeChannel) return;
   realtimeChannel = authClient
-    .channel("ai-builder-room-live")
+    .channel("ai-builder-room-live", { config: { presence: { key: currentUser.id } } })
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "room_members" }, refreshRemote)
@@ -696,7 +700,41 @@ function subscribeRemoteChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "showcases" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, refreshRemote)
-    .subscribe();
+    .on("presence", { event: "sync" }, handlePresenceSync)
+    .on("presence", { event: "join" }, handlePresenceSync)
+    .on("presence", { event: "leave" }, handlePresenceSync)
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await trackMyPresence();
+      }
+    });
+}
+
+function handlePresenceSync() {
+  if (!realtimeChannel) return;
+  const presenceState = realtimeChannel.presenceState() || {};
+  const nextLive = new Set();
+  Object.keys(presenceState).forEach((key) => {
+    const entries = presenceState[key] || [];
+    const userId = entries[0]?.user_id || key;
+    if (userId) nextLive.add(userId);
+  });
+  liveUserIds = nextLive;
+  renderAll();
+}
+
+async function trackMyPresence() {
+  if (!realtimeChannel || !currentUser) return;
+  try {
+    await realtimeChannel.track({
+      user_id: currentUser.id,
+      room_id: state.activeRoomId,
+      seat_id: checkedInSeatId() || null,
+      online_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("[presence] track failed", error);
+  }
 }
 
 let refreshTimer = null;
@@ -1016,8 +1054,18 @@ function roomBuilders(roomId = state.activeRoomId) {
   return state.builders.filter((builder) => builder.roomId === roomId);
 }
 
+function isBuilderLive(builder) {
+  if (!builder) return false;
+  if (builder.id === "me" || builder.id === currentUser?.id) return true;
+  return liveUserIds.has(builder.id);
+}
+
+function liveBuilders(builders = state.builders) {
+  return builders.filter(isBuilderLive);
+}
+
 function seatedBuilders(builders = state.builders) {
-  return builders.filter((builder) => Boolean(builder.seatId));
+  return builders.filter((builder) => Boolean(builder.seatId) && isBuilderLive(builder));
 }
 
 function builderSeatTime(builder) {
@@ -1060,7 +1108,7 @@ function builderSeatTime(builder) {
 function roomStats(roomId) {
   const builders = roomBuilders(roomId);
   return {
-    entered: builders.length,
+    entered: liveBuilders(builders).length,
     seated: seatedBuilders(builders).length
   };
 }
@@ -1431,7 +1479,7 @@ function renderCoffeeMatches() {
 function renderMetrics() {
   const helpCount = state.helps.length;
   const solvedCount = state.helps.filter((help) => help.solved).length;
-  byId("metricEntered").textContent = state.builders.length;
+  byId("metricEntered").textContent = liveBuilders().length;
   byId("metricSeated").textContent = seatedBuilders().length;
   byId("metricHelp").textContent = helpCount;
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
