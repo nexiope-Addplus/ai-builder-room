@@ -999,10 +999,10 @@ function renderFloors() {
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
       const roomStatus = floorRooms
-        .map((floorRoom) => {
+        .map((floorRoom, index) => {
           const count = roomBuilders(floorRoom.id).length;
           const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${count}/${floorRoom.limit}">${escapeHtml(shortRoomNumber(floorRoom.name))}</span>`;
+          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${count}/${floorRoom.limit}">${escapeHtml(floorGuideRoomNumber(floorRoom.name, floor.floor, index))}</span>`;
         })
         .join("");
       
@@ -1028,8 +1028,13 @@ function renderFloors() {
     .join("");
 }
 
-function shortRoomNumber(roomName) {
-  return String(roomName || "").replace(/호$/, "");
+function floorGuideRoomNumber(roomName, floorLabel, index) {
+  const roomCode = String(roomName || "").match(/\bB?\d{3}\b/i)?.[0];
+  if (roomCode) return `${roomCode.toUpperCase()}호`;
+  if (floorLabel === "B1") return `B${101 + index}호`;
+  const floorNumber = Number.parseInt(floorLabel, 10);
+  if (Number.isFinite(floorNumber)) return `${floorNumber * 100 + index + 1}호`;
+  return `${index + 1}호`;
 }
 
 function renderBuilders() {
