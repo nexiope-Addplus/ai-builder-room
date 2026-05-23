@@ -1001,7 +1001,7 @@ function renderFloors() {
       const roomStatus = floorRooms
         .map((floorRoom) => {
           const count = roomBuilders(floorRoom.id).length;
-          return `${escapeHtml(floorRoom.name)} ${count}/${floorRoom.limit}`;
+          return `${escapeHtml(shortRoomNumber(floorRoom.name))} ${count}/${floorRoom.limit}`;
         })
         .join(" · ");
       
@@ -1025,6 +1025,10 @@ function renderFloors() {
       `;
     })
     .join("");
+}
+
+function shortRoomNumber(roomName) {
+  return String(roomName || "").replace(/호$/, "");
 }
 
 function renderBuilders() {
