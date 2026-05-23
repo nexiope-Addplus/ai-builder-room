@@ -596,7 +596,7 @@ function isDuplicateSeatError(error) {
 async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   if (!remoteReady) return;
   const room = state.rooms.find((item) => item.id === roomId);
-  const occupied = roomBuilders(roomId).filter((builder) => builder.id !== currentUser.id).length;
+  const occupied = liveBuilders(roomBuilders(roomId)).filter((builder) => builder.id !== currentUser.id).length;
   if (room && occupied >= room.limit) {
     alert("이 방은 정원이 가득 찼습니다. 다른 방을 선택하거나 새 방을 만들어주세요.");
     return;
@@ -2723,7 +2723,7 @@ function renderTrends() {
   if (floorProgressList) {
     floorProgressList.innerHTML = floorPlan.map((floor) => {
       const room = state.rooms.find((item) => item.category === floor.category);
-      const roomBuildersList = room ? roomBuilders(room.id) : [];
+      const roomBuildersList = room ? liveBuilders(roomBuilders(room.id)) : [];
       const count = roomBuildersList.length;
       const limit = room ? room.limit : 8;
       const pct = Math.min(100, Math.round((count / limit) * 100));
@@ -2747,7 +2747,7 @@ function renderTrends() {
     }).join("");
   }
   
-  const activeCount = state.builders.length;
+  const activeCount = liveBuilders().length;
   const modifier = Math.min(25, activeCount * 4);
   const p0 = 15;
   const p1 = 40 + modifier * 0.2;
