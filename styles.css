@@ -1227,6 +1227,24 @@ button:disabled {
   font-weight: 800;
 }
 
+.room-live-counts {
+  display: inline-flex;
+  gap: 8px;
+  min-width: 148px;
+}
+
+.room-live-counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.room-live-counts b {
+  color: var(--green);
+  font-size: 14px;
+}
+
 .room-header,
 .board-header {
   display: flex;

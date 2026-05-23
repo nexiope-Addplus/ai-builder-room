@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=1.0.4" />
+    <link rel="stylesheet" href="./styles.css?v=1.0.5" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen">
@@ -181,7 +181,8 @@
             <span>빠른 지표</span>
           </summary>
           <div class="metrics">
-            <div><strong id="metricOnline">0</strong><span>작업자</span></div>
+            <div><strong id="metricEntered">0</strong><span>입장</span></div>
+            <div><strong id="metricSeated">0</strong><span>착석</span></div>
             <div><strong id="metricHelp">0</strong><span>도움 요청</span></div>
             <div><strong id="metricSolved">0%</strong><span>해결률</span></div>
           </div>
@@ -275,7 +276,10 @@
                     현재 방
                     <select id="quickRoomSelect" data-room-select></select>
                   </label>
-                  <div class="capacity"><span id="activeRoomCount">0</span>/<span id="activeRoomLimit">8</span></div>
+                  <div class="capacity room-live-counts">
+                    <span><b id="activeRoomEntered">0</b> 입장</span>
+                    <span><b id="activeRoomSeated">0</b>/<b id="activeRoomLimit">8</b> 착석</span>
+                  </div>
                 </div>
               </div>
 
@@ -668,7 +672,7 @@
       integrity="sha384-dzQgxMPp/h+N0t5qDf6Bp516wKZr3pXgGMpA7/ZM6tiWkqYo90N060L03dxnZ8Tf"
       crossorigin="anonymous"
     ></script>
-    <script src="./config.js?v=1.0.4"></script>
-    <script src="./app.js?v=1.0.4"></script>
+    <script src="./config.js?v=1.0.5"></script>
+    <script src="./app.js?v=1.0.5"></script>
   </body>
 </html>

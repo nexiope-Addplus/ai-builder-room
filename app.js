@@ -939,6 +939,10 @@ function roomBuilders(roomId = state.activeRoomId) {
   return state.builders.filter((builder) => builder.roomId === roomId);
 }
 
+function seatedBuilders(builders = state.builders) {
+  return builders.filter((builder) => Boolean(builder.seatId));
+}
+
 function syncProfileInputs(force = false) {
   if (!force && document.activeElement?.closest(".profile-panel")) {
     syncModalToolPickers();
@@ -986,7 +990,9 @@ function renderRooms() {
 
   byId("activeRoomType").textContent = active.category;
   byId("activeRoomName").textContent = active.name;
-  byId("activeRoomCount").textContent = roomBuilders(active.id).length;
+  const activeRoomBuilders = roomBuilders(active.id);
+  byId("activeRoomEntered").textContent = activeRoomBuilders.length;
+  byId("activeRoomSeated").textContent = seatedBuilders(activeRoomBuilders).length;
   byId("activeRoomLimit").textContent = active.limit;
 }
 
@@ -1313,7 +1319,8 @@ function renderCoffeeMatches() {
 function renderMetrics() {
   const helpCount = state.helps.length;
   const solvedCount = state.helps.filter((help) => help.solved).length;
-  byId("metricOnline").textContent = state.builders.length;
+  byId("metricEntered").textContent = state.builders.length;
+  byId("metricSeated").textContent = seatedBuilders().length;
   byId("metricHelp").textContent = helpCount;
   byId("metricSolved").textContent = helpCount ? `${Math.round((solvedCount / helpCount) * 100)}%` : "0%";
 }
