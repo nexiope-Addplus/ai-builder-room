@@ -73,6 +73,11 @@ let remoteReady = false;
 let realtimeChannel = null;
 let liveUserIds = new Set();
 let seatColumnReady = true;
+let currentTaskColumnReady = true;
+let pomodoroTableReady = true;
+let activePomo = null;
+let pomoTickInterval = null;
+let lastPomoAnnouncedAt = 0;
 let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
 let usageLimitLogoutStarted = false;
@@ -103,7 +108,8 @@ const seedState = {
     goal: "Claude Code로 AI 작업실 MVP 만들기",
     category: "Vibe Coding",
     status: "질문 가능",
-    tools: "Claude Code, GPT, Figma"
+    tools: "Claude Code, GPT, Figma",
+    currentTask: ""
   },
   activeRoomId: "vibe-1",
   rooms: [
@@ -324,7 +330,7 @@ function clearSeatSelection() {
   localStorage.removeItem("ai-builder-seat-checked-in");
 }
 
-async function logOutForSeatTimeLimit() {
+async function releaseSeatForTimeLimit() {
   if (isAdmin() || usageLimitLogoutStarted) return;
   usageLimitLogoutStarted = true;
   if (remoteReady && currentUser) {
@@ -335,8 +341,8 @@ async function logOutForSeatTimeLimit() {
     }
   }
   clearSeatSelection();
-  alert("오늘 5시간 좌석 이용 시간이 끝나 자동 로그아웃됩니다.");
-  await signOut();
+  alert("오늘 5시간 좌석 이용이 끝났습니다. 잠시 쉰 뒤 자리를 다시 선택해 앉아주세요.");
+  renderAll();
 }
 
 function startUsageTimer() {
@@ -347,14 +353,14 @@ function startUsageTimer() {
       return;
     }
     if (!hasSeatTimeLeft()) {
-      logOutForSeatTimeLimit();
+      releaseSeatForTimeLimit();
       return;
     }
     const nextUsage = getUsageSeconds() + 60;
     setUsageSeconds(nextUsage);
     renderUsagePass();
     if (nextUsage >= dailySeatLimitSeconds) {
-      logOutForSeatTimeLimit();
+      releaseSeatForTimeLimit();
     }
   }, 60000);
 }
@@ -389,7 +395,7 @@ function showApp() {
   byId("resetDemo").classList.toggle("is-hidden", remoteReady);
   startUsageTimer();
   if (isSeatCheckedIn && !hasSeatTimeLeft()) {
-    logOutForSeatTimeLimit();
+    releaseSeatForTimeLimit();
   }
 }
 
@@ -433,12 +439,13 @@ function defaultProfileFromUser(user) {
     category: "Vibe Coding",
     status: "질문 가능",
     tools: "Claude Code, GPT",
+    currentTask: "",
     role: "user"
   };
 }
 
 function toProfileRow() {
-  return {
+  const row = {
     id: currentUser.id,
     nickname: state.profile.nickname,
     goal: state.profile.goal,
@@ -447,6 +454,8 @@ function toProfileRow() {
     tools: state.profile.tools,
     updated_at: new Date().toISOString()
   };
+  if (currentTaskColumnReady) row.current_task = state.profile.currentTask || "";
+  return row;
 }
 
 function fromProfileRow(row) {
@@ -457,8 +466,13 @@ function fromProfileRow(row) {
     category: row.category || "Vibe Coding",
     status: row.status || "질문 가능",
     tools: row.tools || "도구 미지정",
+    currentTask: row.current_task || "",
     role: row.role || "user"
   };
+}
+
+function isMissingCurrentTaskError(error) {
+  return /current_task|schema cache|column/i.test(error?.message || "");
 }
 
 function isAdmin() {
@@ -576,12 +590,18 @@ async function signOut() {
     realtimeChannel = null;
   }
   liveUserIds = new Set();
+  activePomo = null;
+  stopPomoTicker();
   showAuth();
 }
 
 async function upsertProfile() {
   if (!remoteReady) return;
-  const { error } = await authClient.from("profiles").upsert(toProfileRow());
+  let { error } = await authClient.from("profiles").upsert(toProfileRow());
+  if (error && isMissingCurrentTaskError(error)) {
+    currentTaskColumnReady = false;
+    ({ error } = await authClient.from("profiles").upsert(toProfileRow()));
+  }
   if (error) throw error;
 }
 
@@ -633,15 +653,28 @@ async function loadRemoteState() {
     authClient.from("showcases").select("*").order("created_at", { ascending: false }),
     authClient.from("chats").select("id, room_id, user_id, body, created_at, profiles(nickname)").order("created_at", { ascending: false }).limit(200)
   ]);
+  const memberProfileCols = currentTaskColumnReady
+    ? "id,nickname,goal,category,status,tools,current_task"
+    : "id,nickname,goal,category,status,tools";
   let membersRes = await authClient
     .from("room_members")
-    .select("room_id, seat_id, updated_at, profiles(id,nickname,goal,category,status,tools)")
+    .select(`room_id, seat_id, updated_at, profiles(${memberProfileCols})`)
     .order("updated_at", { ascending: false });
-  if (membersRes.error && isMissingSeatColumnError(membersRes.error)) {
-    seatColumnReady = false;
+  if (membersRes.error && isMissingCurrentTaskError(membersRes.error)) {
+    currentTaskColumnReady = false;
     membersRes = await authClient
       .from("room_members")
-      .select("room_id, profiles(id,nickname,goal,category,status,tools)")
+      .select("room_id, seat_id, updated_at, profiles(id,nickname,goal,category,status,tools)")
+      .order("updated_at", { ascending: false });
+  }
+  if (membersRes.error && isMissingSeatColumnError(membersRes.error)) {
+    seatColumnReady = false;
+    const cols = currentTaskColumnReady
+      ? "id,nickname,goal,category,status,tools,current_task"
+      : "id,nickname,goal,category,status,tools";
+    membersRes = await authClient
+      .from("room_members")
+      .select(`room_id, profiles(${cols})`)
       .order("updated_at", { ascending: false });
   } else {
     seatColumnReady = true;
@@ -679,6 +712,7 @@ async function loadRemoteState() {
       status: member.profiles.status || "질문 가능",
       goal: member.profiles.goal || "오늘의 목표 미정",
       tools: member.profiles.tools || "도구 미지정",
+      currentTask: member.profiles.current_task || "",
       seatId: member.seat_id || "",
       updatedAt: member.updated_at || ""
     }));
@@ -695,6 +729,8 @@ async function loadRemoteState() {
     isSeatCheckedIn = true;
     localStorage.setItem("ai-builder-seat-checked-in", todayKey());
   }
+
+  await loadActivePomo();
 }
 
 function subscribeRemoteChanges() {
@@ -708,6 +744,7 @@ function subscribeRemoteChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "showcases" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, refreshRemote)
+    .on("postgres_changes", { event: "*", schema: "public", table: "room_pomodoros" }, () => loadActivePomo())
     .on("presence", { event: "sync" }, handlePresenceSync)
     .on("presence", { event: "join" }, handlePresenceSync)
     .on("presence", { event: "leave" }, handlePresenceSync)
@@ -1128,6 +1165,7 @@ function syncProfileInputs(force = false) {
   }
   byId("nicknameInput").value = state.profile.nickname;
   byId("goalInput").value = state.profile.goal;
+  if (byId("currentTaskInput")) byId("currentTaskInput").value = state.profile.currentTask || "";
   fillSelect(byId("goalPresetInput"), ["", ...goalOptions, "custom"], goalPresetValue(state.profile.goal), {
     "": "목표를 선택하세요",
     custom: "직접 입력"
@@ -1290,7 +1328,7 @@ function renderBuilders() {
           const statusClass = builder?.status === "도움 필요" ? "help" : builder?.status === "커피챗 가능" ? "coffee" : builder ? "focus" : "empty";
           const displayName = builder?.name || "Available";
           const tool = builder ? primaryTool(builder.tools) : "Open";
-          const bubbleText = builder ? shortText(builder.goal, 22) : "빈 좌석";
+          const bubbleText = builder ? shortText(builder.currentTask || builder.goal, 22) : "빈 좌석";
       const hue = builder ? (function() {
         let hash = 0;
         for (let i = 0; i < tool.length; i++) {
@@ -1661,7 +1699,8 @@ function updateMyBuilder() {
     category: state.profile.category,
     status: state.profile.status,
     goal: state.profile.goal,
-    tools: state.profile.tools
+    tools: state.profile.tools,
+    currentTask: state.profile.currentTask || ""
   });
 }
 
@@ -1924,6 +1963,7 @@ byId("saveProfile").addEventListener("click", async () => {
     category: cleanText(byId("categoryInput").value, 40),
     status: cleanText(byId("statusInput").value, 40),
     tools: cleanText(byId("toolsInput").value, 240) || "도구 미지정",
+    currentTask: cleanText(byId("currentTaskInput")?.value || "", 60),
     role: state.profile?.role || "user"
   };
   updateMyBuilder();
@@ -2256,31 +2296,57 @@ initAuth();
    ========================================================================== */
 
 // 1. Pomodoro Logic & View Update
+const POMO_FOCUS_SECONDS = 25 * 60;
+const POMO_BREAK_SECONDS = 5 * 60;
+
+function pomoDurationFor(mode) {
+  return mode === "break" ? POMO_BREAK_SECONDS : POMO_FOCUS_SECONDS;
+}
+
+function pomoSecondsLeftRemote() {
+  if (!activePomo || !activePomo.startedAt) return null;
+  const elapsed = Math.floor((Date.now() - activePomo.startedAt.getTime()) / 1000);
+  return Math.max(0, activePomo.durationSeconds - elapsed);
+}
+
 function updatePomoDisplay() {
-  const minutes = Math.floor(pomoSecondsLeft / 60);
-  const seconds = pomoSecondsLeft % 60;
+  const remoteLeft = pomoSecondsLeftRemote();
+  const isRemote = remoteLeft !== null;
+  const left = isRemote ? remoteLeft : pomoSecondsLeft;
+  const mode = isRemote ? activePomo.mode : (pomoIsBreak ? "break" : "focus");
+  const running = isRemote || pomoIsRunning;
+
+  const minutes = Math.floor(left / 60);
+  const seconds = left % 60;
   const str = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  
+
   const pomoTimeDisplay = byId("pomoTimeDisplay");
   const zenTimeDisplay = byId("zenTimeDisplay");
   if (pomoTimeDisplay) pomoTimeDisplay.textContent = str;
   if (zenTimeDisplay) zenTimeDisplay.textContent = str;
-  
-  const total = pomoIsBreak ? 5 * 60 : 25 * 60;
-  const ratio = pomoSecondsLeft / total;
-  
+
+  const total = pomoDurationFor(mode);
+  const ratio = left / total;
+
   const pomoRingFill = byId("pomoRingFill");
   const zenRingFill = byId("zenRingFill");
   if (pomoRingFill) pomoRingFill.style.strokeDashoffset = (1 - ratio) * 283;
   if (zenRingFill) zenRingFill.style.strokeDashoffset = (1 - ratio) * 565;
-  
-  const stateLabel = pomoIsBreak ? "BREAK" : (pomoIsRunning ? "FOCUSING" : "READY");
+
+  let stateLabel = "READY";
+  if (isRemote) stateLabel = mode === "break" ? "BREAK · 함께" : "FOCUSING · 함께";
+  else if (running) stateLabel = mode === "break" ? "BREAK" : "FOCUSING";
   const pomoStateLabel = byId("pomoStateLabel");
   if (pomoStateLabel) pomoStateLabel.textContent = stateLabel;
-  
-  const pulseText = pomoIsBreak ? "RECOVERY TIME" : "DEEP FOCUSING";
+
+  const pulseText = mode === "break" ? "RECOVERY TIME" : "DEEP FOCUSING";
   const pulseTextEl = document.querySelector(".pomo-pulse-text");
   if (pulseTextEl) pulseTextEl.textContent = pulseText;
+
+  const startBtn = byId("pomoStartBtn");
+  if (startBtn) startBtn.textContent = isRemote ? "정지" : (running ? "일시정지" : "시작");
+  const zenStartBtn = byId("zenPomoStartBtn");
+  if (zenStartBtn) zenStartBtn.textContent = isRemote ? "정지" : (running ? "일시정지" : "집중 시작");
 }
 
 function playAlarmSound() {
@@ -2305,6 +2371,26 @@ function playAlarmSound() {
 }
 
 function tickPomo() {
+  const remoteLeft = pomoSecondsLeftRemote();
+  if (remoteLeft !== null) {
+    if (remoteLeft > 0) {
+      updatePomoDisplay();
+      return;
+    }
+    if (Date.now() - lastPomoAnnouncedAt < 10000) return;
+    lastPomoAnnouncedAt = Date.now();
+    playAlarmSound();
+    const wasBreak = activePomo?.mode === "break";
+    const startedByMe = activePomo?.startedBy === currentUser?.id;
+    if (remoteReady && startedByMe && pomodoroTableReady) {
+      deleteRoomPomo().catch(console.error);
+    }
+    activePomo = null;
+    stopPomoTicker();
+    alert(wasBreak ? "휴식 끝, 다시 집중해볼까요? ⚡" : "집중 끝! 5분 휴식 시작 버튼을 누르세요. ☕");
+    updatePomoDisplay();
+    return;
+  }
   if (pomoSecondsLeft > 0) {
     pomoSecondsLeft--;
     updatePomoDisplay();
@@ -2323,27 +2409,94 @@ function tickPomo() {
   }
 }
 
+function startPomoTicker() {
+  if (pomoTickInterval) return;
+  pomoTickInterval = setInterval(tickPomo, 1000);
+}
+
+function stopPomoTicker() {
+  if (pomoTickInterval) {
+    clearInterval(pomoTickInterval);
+    pomoTickInterval = null;
+  }
+}
+
+async function upsertRoomPomo(mode) {
+  if (!remoteReady || !pomodoroTableReady || !currentUser) return;
+  const payload = {
+    room_id: state.activeRoomId,
+    mode,
+    started_at: new Date().toISOString(),
+    duration_seconds: pomoDurationFor(mode),
+    started_by: currentUser.id,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await authClient.from("room_pomodoros").upsert(payload);
+  if (error) {
+    if (/room_pomodoros|schema cache|relation/i.test(error.message || "")) {
+      pomodoroTableReady = false;
+      alert("Supabase에 room_pomodoros 테이블이 없습니다. supabase-pomodoro.sql을 실행해주세요.");
+      return;
+    }
+    throw error;
+  }
+}
+
+async function deleteRoomPomo() {
+  if (!remoteReady || !pomodoroTableReady) return;
+  const { error } = await authClient
+    .from("room_pomodoros")
+    .delete()
+    .eq("room_id", state.activeRoomId);
+  if (error) throw error;
+}
+
 function startPomo() {
   initAudio();
   if (audioCtx && audioCtx.state === "suspended") {
     audioCtx.resume();
   }
+
+  if (remoteReady && pomodoroTableReady) {
+    if (activePomo && activePomo.mode !== "idle") {
+      deleteRoomPomo()
+        .then(() => {
+          activePomo = null;
+          stopPomoTicker();
+          updatePomoDisplay();
+        })
+        .catch((error) => alert(error.message));
+      return;
+    }
+    const nextMode = pomoSecondsLeftRemote() === null ? "focus" : "focus";
+    upsertRoomPomo(nextMode).catch((error) => alert(error.message));
+    return;
+  }
+
   if (pomoIsRunning) {
     pomoIsRunning = false;
     clearInterval(pomoInterval);
     pomoInterval = null;
-    byId("pomoStartBtn").textContent = "시작";
-    byId("zenPomoStartBtn").textContent = "집중 시작";
   } else {
     pomoIsRunning = true;
     pomoInterval = setInterval(tickPomo, 1000);
-    byId("pomoStartBtn").textContent = "일시정지";
-    byId("zenPomoStartBtn").textContent = "일시정지";
   }
   updatePomoDisplay();
 }
 
 function resetPomo() {
+  if (remoteReady && pomodoroTableReady && activePomo) {
+    deleteRoomPomo()
+      .then(() => {
+        activePomo = null;
+        stopPomoTicker();
+        pomoIsBreak = false;
+        pomoSecondsLeft = 25 * 60;
+        updatePomoDisplay();
+      })
+      .catch((error) => alert(error.message));
+    return;
+  }
   pomoIsRunning = false;
   if (pomoInterval) {
     clearInterval(pomoInterval);
@@ -2351,8 +2504,38 @@ function resetPomo() {
   }
   pomoIsBreak = false;
   pomoSecondsLeft = 25 * 60;
-  byId("pomoStartBtn").textContent = "시작";
-  byId("zenPomoStartBtn").textContent = "집중 시작";
+  updatePomoDisplay();
+}
+
+function mapPomoRow(row) {
+  if (!row) return null;
+  return {
+    roomId: row.room_id,
+    mode: row.mode,
+    startedAt: row.started_at ? new Date(row.started_at) : null,
+    durationSeconds: row.duration_seconds || POMO_FOCUS_SECONDS,
+    startedBy: row.started_by || null
+  };
+}
+
+async function loadActivePomo() {
+  if (!remoteReady || !pomodoroTableReady || !state.activeRoomId) return;
+  const { data, error } = await authClient
+    .from("room_pomodoros")
+    .select("*")
+    .eq("room_id", state.activeRoomId)
+    .maybeSingle();
+  if (error) {
+    if (/room_pomodoros|schema cache|relation/i.test(error.message || "")) {
+      pomodoroTableReady = false;
+      return;
+    }
+    console.error(error);
+    return;
+  }
+  const next = mapPomoRow(data);
+  activePomo = next && next.mode !== "idle" ? next : null;
+  if (activePomo) startPomoTicker(); else stopPomoTicker();
   updatePomoDisplay();
 }
 
@@ -2858,6 +3041,16 @@ function showBuilderCard(builderId) {
   byId("cardSeatTimeBarFill").style.width = `${seatTime.percent}%`;
   
   byId("cardGoal").textContent = builder.goal || "목표가 지정되지 않았습니다.";
+  const taskWrap = byId("cardCurrentTaskWrap");
+  if (taskWrap) {
+    const task = builder.currentTask || "";
+    if (task) {
+      taskWrap.hidden = false;
+      byId("cardCurrentTask").textContent = task;
+    } else {
+      taskWrap.hidden = true;
+    }
+  }
   
   const toolsContainer = byId("cardToolsList");
   if (toolsContainer) {

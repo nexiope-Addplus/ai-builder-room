@@ -134,6 +134,10 @@
             </select>
             <textarea id="goalInput" rows="3" maxlength="160" placeholder="예: Claude Code로 예약 페이지 MVP 만들기"></textarea>
           </label>
+          <label>
+            지금 작업 중 (옆자리 빌더에게 공유)
+            <input id="currentTaskInput" maxlength="60" placeholder="예: Cursor에서 auth 디버깅" />
+          </label>
           <div class="field-grid">
             <label>
               카테고리
@@ -639,6 +643,11 @@
             <div class="card-goal-section">
               <strong>🎯 오늘의 목표</strong>
               <p id="cardGoal">오늘의 목표 미정</p>
+            </div>
+
+            <div class="card-goal-section" id="cardCurrentTaskWrap" hidden>
+              <strong>⚡ 지금 작업 중</strong>
+              <p id="cardCurrentTask"></p>
             </div>
 
             <div class="card-tools-section">
