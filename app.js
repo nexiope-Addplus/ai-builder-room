@@ -80,6 +80,11 @@ let feedbackItems = [];
 let newsTableReady = true;
 let newsItems = [];
 let newsSourceFilter = "all";
+let streakColumnsReady = true;
+let questionAnswersTableReady = true;
+let questionAnswers = new Map();
+let newsStateTableReady = true;
+let newsUserState = new Map();
 let activePomo = null;
 let pomoTickInterval = null;
 let lastPomoAnnouncedAt = 0;
@@ -472,6 +477,8 @@ function fromProfileRow(row) {
     status: row.status || "질문 가능",
     tools: row.tools || "도구 미지정",
     currentTask: row.current_task || "",
+    streakDays: row.streak_days || 0,
+    lastVisitDate: row.last_visit_date || null,
     role: row.role || "user"
   };
 }
@@ -741,6 +748,9 @@ async function loadRemoteState() {
   await loadActivePomo();
   if (isAdmin()) await loadFeedback();
   loadNews();
+  loadNewsUserState();
+  loadQuestionAnswers();
+  updateStreak();
 }
 
 async function loadFeedback() {
@@ -852,6 +862,222 @@ function setFeedbackNote(message) {
   if (el) el.textContent = message || "";
 }
 
+// ---- Streak (attendance) ----
+async function updateStreak() {
+  if (!remoteReady || !currentUser || !streakColumnsReady) return;
+  const today = todayKey();
+  const last = state.profile.lastVisitDate;
+  if (last === today) {
+    renderStreak();
+    return;
+  }
+  let streak = state.profile.streakDays || 0;
+  if (last) {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const yKey = y.toISOString().slice(0, 10);
+    streak = last === yKey ? streak + 1 : 1;
+  } else {
+    streak = 1;
+  }
+  state.profile.streakDays = streak;
+  state.profile.lastVisitDate = today;
+  const { error } = await authClient.from("profiles").update({
+    streak_days: streak,
+    last_visit_date: today
+  }).eq("id", currentUser.id);
+  if (error) {
+    if (/streak_days|last_visit_date|schema cache|column/i.test(error.message || "")) {
+      streakColumnsReady = false;
+    } else {
+      console.error(error);
+    }
+  }
+  renderStreak();
+}
+
+function renderStreak() {
+  const pill = byId("streakPill");
+  const num = byId("streakDays");
+  if (!pill || !num) return;
+  const days = state.profile?.streakDays || 0;
+  if (days > 0) {
+    pill.hidden = false;
+    num.textContent = days;
+  } else {
+    pill.hidden = true;
+  }
+}
+
+// ---- Q&A answers ----
+async function loadQuestionAnswers() {
+  if (!remoteReady || !questionAnswersTableReady) return;
+  const { data, error } = await authClient
+    .from("question_answers")
+    .select("id, question_id, user_id, body, created_at, profiles(nickname)")
+    .order("created_at", { ascending: true });
+  if (error) {
+    if (/question_answers|schema cache|relation/i.test(error.message || "")) {
+      questionAnswersTableReady = false;
+    } else {
+      console.error(error);
+    }
+    return;
+  }
+  const next = new Map();
+  for (const row of data || []) {
+    if (!next.has(row.question_id)) next.set(row.question_id, []);
+    next.get(row.question_id).push({
+      id: row.id,
+      questionId: row.question_id,
+      userId: row.user_id,
+      name: row.profiles?.nickname || "익명",
+      body: row.body,
+      createdAt: row.created_at
+    });
+  }
+  questionAnswers = next;
+  if (typeof renderQuestions === "function") renderQuestions();
+}
+
+async function postQuestionAnswer(questionId, body) {
+  const text = cleanText(body, 1000);
+  if (!text || !remoteReady || !currentUser) return false;
+  const { error } = await authClient.from("question_answers").insert({
+    question_id: questionId,
+    user_id: currentUser.id,
+    body: text
+  });
+  if (error) {
+    if (/question_answers|schema cache|relation/i.test(error.message || "")) {
+      questionAnswersTableReady = false;
+      alert("Supabase에 question_answers 테이블이 없습니다. supabase-feature-pack.sql을 실행해주세요.");
+    } else {
+      alert(error.message);
+    }
+    return false;
+  }
+  return true;
+}
+
+async function deleteQuestionAnswer(id) {
+  if (!confirm("답글을 삭제하시겠습니까?")) return;
+  const { error } = await authClient.from("question_answers").delete().eq("id", id);
+  if (error) alert(error.message);
+}
+
+// ---- News user state (bookmark + read) ----
+async function loadNewsUserState() {
+  if (!remoteReady || !currentUser || !newsStateTableReady) return;
+  const { data, error } = await authClient
+    .from("news_user_state")
+    .select("news_id, bookmarked, read_at")
+    .eq("user_id", currentUser.id);
+  if (error) {
+    if (/news_user_state|schema cache|relation/i.test(error.message || "")) {
+      newsStateTableReady = false;
+    } else {
+      console.error(error);
+    }
+    return;
+  }
+  newsUserState = new Map((data || []).map((r) => [r.news_id, { bookmarked: !!r.bookmarked, readAt: r.read_at }]));
+  renderNews();
+}
+
+async function toggleNewsBookmark(newsId) {
+  if (!remoteReady || !currentUser || !newsStateTableReady) return;
+  const current = newsUserState.get(newsId) || { bookmarked: false, readAt: null };
+  const next = { bookmarked: !current.bookmarked, readAt: current.readAt };
+  newsUserState.set(newsId, next);
+  renderNews();
+  const { error } = await authClient.from("news_user_state").upsert({
+    user_id: currentUser.id,
+    news_id: newsId,
+    bookmarked: next.bookmarked,
+    read_at: next.readAt
+  });
+  if (error) {
+    newsUserState.set(newsId, current);
+    renderNews();
+    alert(error.message);
+  }
+}
+
+async function markNewsRead(newsId) {
+  if (!remoteReady || !currentUser || !newsStateTableReady) return;
+  const current = newsUserState.get(newsId) || { bookmarked: false, readAt: null };
+  if (current.readAt) return;
+  const readAt = new Date().toISOString();
+  newsUserState.set(newsId, { ...current, readAt });
+  renderNews();
+  const { error } = await authClient.from("news_user_state").upsert({
+    user_id: currentUser.id,
+    news_id: newsId,
+    bookmarked: current.bookmarked,
+    read_at: readAt
+  });
+  if (error) console.error(error);
+}
+
+// ---- Theme ----
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "";
+  localStorage.setItem("ai-builder-theme", theme);
+  const btn = byId("themeToggle");
+  if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("ai-builder-theme");
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(saved || (prefersDark ? "dark" : "light"));
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  applyTheme(current === "dark" ? "light" : "dark");
+}
+
+// ---- Onboarding tour ----
+const tourSteps = [
+  {
+    title: "🏢 1단계: 층 선택",
+    body: "왼쪽 사이드바의 '층별 안내'에서 작업 카테고리(코딩 / 디자인 / 자동화 / 프롬프트)에 맞는 층을 골라 입장하세요. 같은 층의 빌더들이 같은 화면에 모입니다."
+  },
+  {
+    title: "💺 2단계: 좌석 선택",
+    body: "방에 들어가면 빈 좌석을 클릭한 뒤 '이 자리에 앉기'를 누르세요. 좌석에 앉아야 작업 시간이 카운트되고 다른 빌더들에게 캐릭터가 보입니다."
+  },
+  {
+    title: "🎯 3단계: 목표와 지금 작업 공유",
+    body: "사이드바 '내 작업 상태'에서 오늘의 목표와 '지금 작업 중'을 한 줄로 적어주세요. 옆자리 빌더들에게 자연스럽게 공유되어 도움 요청과 커피챗이 일어납니다."
+  }
+];
+let tourIndex = 0;
+
+function maybeStartTour() {
+  if (localStorage.getItem("ai-builder-onboarding-done")) return;
+  if (!currentUser) return;
+  tourIndex = 0;
+  byId("tourOverlay").hidden = false;
+  showTourStep();
+}
+
+function showTourStep() {
+  const step = tourSteps[tourIndex];
+  if (!step) return finishTour();
+  byId("tourStepLabel").textContent = `${tourIndex + 1} / ${tourSteps.length}`;
+  byId("tourTitle").textContent = step.title;
+  byId("tourBody").textContent = step.body;
+  byId("tourNext").textContent = tourIndex === tourSteps.length - 1 ? "시작하기 ✨" : "다음 →";
+}
+
+function finishTour() {
+  localStorage.setItem("ai-builder-onboarding-done", "1");
+  byId("tourOverlay").hidden = true;
+}
+
 async function loadNews() {
   if (!remoteReady || !newsTableReady) return;
   const { data, error } = await authClient
@@ -881,9 +1107,10 @@ function renderNews() {
     if (updatedEl) updatedEl.textContent = "";
     return;
   }
-  const filtered = newsSourceFilter === "all"
-    ? newsItems
-    : newsItems.filter((item) => item.source === newsSourceFilter);
+  let filtered;
+  if (newsSourceFilter === "all") filtered = newsItems;
+  else if (newsSourceFilter === "bookmarks") filtered = newsItems.filter((item) => newsUserState.get(item.id)?.bookmarked);
+  else filtered = newsItems.filter((item) => item.source === newsSourceFilter);
   if (!filtered.length) {
     list.innerHTML = `<div class="news-empty">아직 수집된 뉴스가 없습니다. GitHub Actions의 첫 실행을 기다려주세요.</div>`;
     if (updatedEl) updatedEl.textContent = "";
@@ -900,20 +1127,23 @@ function renderNews() {
     const sourceClass = item.source === "GeekNews" ? "src-geek" : "src-ait";
     const published = item.published_at ? formatRelativeTime(item.published_at) : "시간 미상";
     const isFresh = item.published_at && (Date.now() - new Date(item.published_at).getTime()) < 6 * 60 * 60 * 1000;
+    const userState = newsUserState.get(item.id);
+    const isBookmarked = !!userState?.bookmarked;
+    const isRead = !!userState?.readAt;
     return `
-      <a class="news-row ${isFresh ? "fresh" : ""}" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+      <div class="news-row ${isFresh ? "fresh" : ""} ${isRead ? "read" : ""}" data-news-id="${escapeHtml(item.id)}">
         <span class="news-index">${String(index + 1).padStart(2, "0")}</span>
         <span class="news-source ${sourceClass}">${escapeHtml(item.source)}</span>
-        <div class="news-row-body">
+        <a class="news-row-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" data-news-link data-news-id="${escapeHtml(item.id)}">
           <div class="news-row-title">
-            ${isFresh ? `<span class="news-fresh-dot" title="6시간 이내 새 글"></span>` : ""}
+            ${isFresh && !isRead ? `<span class="news-fresh-dot" title="6시간 이내 새 글"></span>` : ""}
             <span>${escapeHtml(item.title)}</span>
           </div>
           ${item.summary ? `<div class="news-row-summary">${escapeHtml(shortText(item.summary, 140))}</div>` : ""}
-        </div>
+        </a>
+        <button class="news-bookmark ${isBookmarked ? "on" : ""}" data-bookmark-id="${escapeHtml(item.id)}" title="${isBookmarked ? "북마크 해제" : "북마크"}" aria-label="북마크">${isBookmarked ? "★" : "☆"}</button>
         <span class="news-row-time">${escapeHtml(published)}</span>
-        <span class="news-row-arrow">↗</span>
-      </a>
+      </div>
     `;
   }).join("");
 }
@@ -932,6 +1162,8 @@ function subscribeRemoteChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "room_pomodoros" }, () => loadActivePomo())
     .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => loadFeedback())
     .on("postgres_changes", { event: "*", schema: "public", table: "news_items" }, () => loadNews())
+    .on("postgres_changes", { event: "*", schema: "public", table: "question_answers" }, () => loadQuestionAnswers())
+    .on("postgres_changes", { event: "*", schema: "public", table: "news_user_state" }, () => loadNewsUserState())
     .on("presence", { event: "sync" }, handlePresenceSync)
     .on("presence", { event: "join" }, handlePresenceSync)
     .on("presence", { event: "leave" }, handlePresenceSync)
@@ -1003,6 +1235,8 @@ async function bootAppForUser(user) {
   }
   showApp();
   renderAll();
+  renderStreak();
+  setTimeout(maybeStartTour, 400);
 }
 
 async function initAuth() {
@@ -1636,19 +1870,38 @@ function renderQuestions() {
   byId("qaList").innerHTML = state.questions
     .map((question) => {
       const canSolve = !remoteReady || question.userId === myId;
+      const answers = questionAnswers.get(question.id) || [];
+      const answersHtml = answers.map((a) => `
+        <div class="qa-answer">
+          <header>
+            <strong>${escapeHtml(a.name)}</strong>
+            <span class="qa-answer-time">${escapeHtml(formatRelativeTime(a.createdAt))}</span>
+            ${a.userId === myId ? `<button class="ghost-button qa-answer-delete" data-answer-id="${escapeHtml(a.id)}">삭제</button>` : ""}
+          </header>
+          <p>${escapeHtml(a.body)}</p>
+        </div>
+      `).join("");
       return `
-        <article class="content-card">
+        <article class="content-card qa-question" data-qid="${escapeHtml(question.id)}">
           <h4>${escapeHtml(question.title)}</h4>
           <p>${escapeHtml(question.body)}</p>
           <div class="meta-row">
             <span class="tag">${escapeHtml(question.category)}</span>
             <span class="tag">${escapeHtml(question.tools || "도구 미지정")}</span>
             <span class="tag ${question.solved ? "solved" : ""}">${question.solved ? "해결됨" : "미해결"}</span>
+            <span class="tag">💬 답글 ${answers.length}</span>
           </div>
           <div class="card-actions">
             <button class="small-button" data-question-action="solve" data-question-id="${escapeHtml(question.id)}" ${question.solved || !canSolve ? "disabled" : ""}>해결됨</button>
             ${adminDeleteButton("questions", question.id)}
           </div>
+          ${answers.length ? `<div class="qa-answers">${answersHtml}</div>` : ""}
+          ${remoteReady && questionAnswersTableReady ? `
+            <form class="qa-answer-form" data-question-id="${escapeHtml(question.id)}">
+              <textarea name="answerBody" rows="2" maxlength="1000" placeholder="답변/조언을 남겨주세요" required></textarea>
+              <button class="small-button" type="submit">답글 달기</button>
+            </form>
+          ` : ""}
         </article>
       `;
     })
@@ -2175,14 +2428,52 @@ byId("feedbackList")?.addEventListener("click", (event) => {
   deleteFeedback(button.dataset.feedbackId);
 });
 
-document.querySelectorAll(".news-filter-btn").forEach((button) => {
-  button.addEventListener("click", () => {
+document.addEventListener("click", (event) => {
+  const filterBtn = event.target.closest(".news-filter-btn");
+  if (filterBtn) {
     document.querySelectorAll(".news-filter-btn").forEach((b) => b.classList.remove("active"));
-    button.classList.add("active");
-    newsSourceFilter = button.dataset.newsSource;
+    filterBtn.classList.add("active");
+    newsSourceFilter = filterBtn.dataset.newsSource;
     renderNews();
+    return;
+  }
+  const bookmarkBtn = event.target.closest(".news-bookmark");
+  if (bookmarkBtn) {
+    event.preventDefault();
+    toggleNewsBookmark(bookmarkBtn.dataset.bookmarkId);
+    return;
+  }
+  const newsLink = event.target.closest("[data-news-link]");
+  if (newsLink) {
+    markNewsRead(newsLink.dataset.newsId);
+    return;
+  }
+  const answerDelete = event.target.closest(".qa-answer-delete");
+  if (answerDelete) {
+    deleteQuestionAnswer(answerDelete.dataset.answerId);
+    return;
+  }
+});
+
+document.addEventListener("submit", (event) => {
+  const form = event.target.closest(".qa-answer-form");
+  if (!form) return;
+  event.preventDefault();
+  const textarea = form.querySelector("textarea[name='answerBody']");
+  const questionId = form.dataset.questionId;
+  postQuestionAnswer(questionId, textarea.value).then((ok) => {
+    if (ok) textarea.value = "";
   });
 });
+
+byId("themeToggle")?.addEventListener("click", toggleTheme);
+byId("tourNext")?.addEventListener("click", () => {
+  tourIndex++;
+  if (tourIndex >= tourSteps.length) return finishTour();
+  showTourStep();
+});
+byId("tourSkip")?.addEventListener("click", finishTour);
+initTheme();
 
 byId("saveProfile").addEventListener("click", async () => {
   const saveButton = byId("saveProfile");

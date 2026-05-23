@@ -227,6 +227,8 @@
             <h2>입장권을 받고, 층을 고르고, 좌석에 앉아 작업하세요</h2>
           </div>
           <div class="topbar-actions">
+            <span class="streak-pill" id="streakPill" title="연속 방문일" hidden>🔥 <strong id="streakDays">0</strong>일째</span>
+            <button class="icon-button" id="themeToggle" title="다크/라이트 모드 전환" aria-label="테마 전환">🌙</button>
             <button class="ghost-button" id="signOut">로그아웃</button>
             <button class="ghost-button" data-open-modal="coffeeModal">커피챗 찾기</button>
             <button class="primary-button" data-open-modal="helpModal">도움 요청</button>
@@ -474,6 +476,7 @@
             <button class="ghost-button news-filter-btn active" data-news-source="all">전체</button>
             <button class="ghost-button news-filter-btn" data-news-source="GeekNews">GeekNews</button>
             <button class="ghost-button news-filter-btn" data-news-source="AI타임즈">AI타임즈</button>
+            <button class="ghost-button news-filter-btn" data-news-source="bookmarks">⭐ 북마크</button>
             <span class="news-updated" id="newsLastUpdated"></span>
           </div>
           <div class="news-list" id="newsList"></div>
@@ -743,5 +746,17 @@
     ></script>
     <script src="./config.js?v=1.0.8"></script>
     <script src="./app.js?v=1.0.12"></script>
+    <div class="tour-overlay" id="tourOverlay" hidden>
+      <div class="tour-backdrop"></div>
+      <div class="tour-card">
+        <div class="tour-step-label" id="tourStepLabel">1 / 3</div>
+        <h3 id="tourTitle">환영합니다 ☕️</h3>
+        <p id="tourBody"></p>
+        <div class="tour-actions">
+          <button class="ghost-button" id="tourSkip">건너뛰기</button>
+          <button class="primary-button" id="tourNext">다음 →</button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
