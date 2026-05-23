@@ -71,8 +71,15 @@ const authClient = authReady ? window.supabase.createClient(authConfig.supabaseU
 let currentUser = null;
 let remoteReady = false;
 let realtimeChannel = null;
-let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "A1";
+let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
+if (localStorage.getItem("ai-builder-seat-selection-version") !== "2") {
+  if (!isSeatCheckedIn) {
+    selectedSeatId = "";
+    localStorage.removeItem("ai-builder-selected-seat");
+  }
+  localStorage.setItem("ai-builder-seat-selection-version", "2");
+}
 let usageTimer = null;
 
 // Premium Features Global Variables
@@ -286,6 +293,7 @@ function hasSeatTimeLeft() {
 }
 
 function selectedSeatButton() {
+  if (!selectedSeatId) return null;
   return document.querySelector(`[data-seat-id="${selectedSeatId}"]`);
 }
 
@@ -295,6 +303,10 @@ function selectedSeatIsEmpty() {
 
 function selectedSeatIsMine() {
   return selectedSeatButton()?.dataset.builderId === (currentUser?.id || "me");
+}
+
+function checkedInSeatId() {
+  return isSeatCheckedIn && selectedSeatId ? selectedSeatId : null;
 }
 
 function startUsageTimer() {
@@ -507,7 +519,11 @@ async function upsertProfile() {
   if (error) throw error;
 }
 
-async function joinRoom(roomId = state.activeRoomId) {
+function isMissingSeatColumnError(error) {
+  return /seat_id|schema cache|column/i.test(error?.message || "");
+}
+
+async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   if (!remoteReady) return;
   const room = state.rooms.find((item) => item.id === roomId);
   const occupied = roomBuilders(roomId).filter((builder) => builder.id !== currentUser.id).length;
@@ -515,24 +531,39 @@ async function joinRoom(roomId = state.activeRoomId) {
     alert("이 방은 정원이 가득 찼습니다. 다른 방을 선택하거나 새 방을 만들어주세요.");
     return;
   }
-  const { error } = await authClient.from("room_members").upsert({
+  const payload = {
     user_id: currentUser.id,
     room_id: roomId,
     updated_at: new Date().toISOString()
-  });
+  };
+  if (seatId) payload.seat_id = seatId;
+  let { error } = await authClient.from("room_members").upsert(payload);
+  if (error && seatId && isMissingSeatColumnError(error)) {
+    delete payload.seat_id;
+    ({ error } = await authClient.from("room_members").upsert(payload));
+  }
   if (error) throw error;
 }
 
 async function loadRemoteState() {
-  const [profileRes, roomsRes, membersRes, helpsRes, questionsRes, showcasesRes, chatsRes] = await Promise.all([
+  const [profileRes, roomsRes, helpsRes, questionsRes, showcasesRes, chatsRes] = await Promise.all([
     authClient.from("profiles").select("*").eq("id", currentUser.id).maybeSingle(),
     authClient.from("rooms").select("*").order("created_at", { ascending: true }),
-    authClient.from("room_members").select("room_id, profiles(id,nickname,goal,category,status,tools)").order("updated_at", { ascending: false }),
     authClient.from("help_requests").select("*").order("created_at", { ascending: false }),
     authClient.from("questions").select("*").order("created_at", { ascending: false }),
     authClient.from("showcases").select("*").order("created_at", { ascending: false }),
     authClient.from("chats").select("id, room_id, body, created_at, profiles(nickname)").order("created_at", { ascending: true }).limit(80)
   ]);
+  let membersRes = await authClient
+    .from("room_members")
+    .select("room_id, seat_id, profiles(id,nickname,goal,category,status,tools)")
+    .order("updated_at", { ascending: false });
+  if (membersRes.error && isMissingSeatColumnError(membersRes.error)) {
+    membersRes = await authClient
+      .from("room_members")
+      .select("room_id, profiles(id,nickname,goal,category,status,tools)")
+      .order("updated_at", { ascending: false });
+  }
 
   const firstError = [profileRes, roomsRes, membersRes, helpsRes, questionsRes, showcasesRes, chatsRes].find((result) => result.error)?.error;
   if (firstError) throw firstError;
@@ -557,8 +588,16 @@ async function loadRemoteState() {
       category: member.profiles.category || "Vibe Coding",
       status: member.profiles.status || "질문 가능",
       goal: member.profiles.goal || "오늘의 목표 미정",
-      tools: member.profiles.tools || "도구 미지정"
+      tools: member.profiles.tools || "도구 미지정",
+      seatId: member.seat_id || ""
     }));
+  const mySeat = state.builders.find((builder) => builder.id === currentUser.id && builder.roomId === state.activeRoomId)?.seatId;
+  if (mySeat && seatPlan.some((seat) => seat.id === mySeat)) {
+    selectedSeatId = mySeat;
+    localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
+    isSeatCheckedIn = true;
+    localStorage.setItem("ai-builder-seat-checked-in", todayKey());
+  }
   state.helps = helpsRes.data.map(mapHelp);
   state.questions = questionsRes.data.map(mapQuestion);
   state.showcases = showcasesRes.data.map(mapShowcase);
@@ -599,7 +638,7 @@ async function bootAppForUser(user) {
     await loadRemoteState();
     await upsertProfile();
     if (!state.builders.some((builder) => builder.id === currentUser.id)) {
-      await joinRoom(state.activeRoomId);
+      await joinRoom(state.activeRoomId, checkedInSeatId());
       updateMyBuilder();
       await loadRemoteState();
     }
@@ -993,8 +1032,11 @@ function renderBuilders() {
   const themeClass = roomThemeClass(room.category);
   const themeLabel = roomThemeLabel(room.category);
   const occupants = new Map();
-  seatPlan.slice(0, room.limit).forEach((seat, index) => {
-    occupants.set(seat.id, builders[index] || null);
+  const validSeats = new Set(seatPlan.slice(0, room.limit).map((seat) => seat.id));
+  builders.forEach((builder) => {
+    if (builder.seatId && validSeats.has(builder.seatId) && !occupants.has(builder.seatId)) {
+      occupants.set(builder.seatId, builder);
+    }
   });
 
   byId("builderGrid").innerHTML = `
@@ -1032,7 +1074,7 @@ function renderBuilders() {
         .slice(0, room.limit)
         .map((seat) => {
           const builder = occupants.get(seat.id);
-          const selected = seat.id === selectedSeatId;
+          const selected = Boolean(selectedSeatId) && seat.id === selectedSeatId;
           const empty = !builder;
           const statusIcon = builder?.status === "도움 필요" ? "!" : builder?.status === "커피챗 가능" ? "☕" : builder ? "◐" : "";
           const statusClass = builder?.status === "도움 필요" ? "help" : builder?.status === "커피챗 가능" ? "coffee" : builder ? "focus" : "empty";
@@ -1298,12 +1340,25 @@ function renderUsagePass() {
 }
 
 function renderSelectedSeat() {
-  const seat = seatPlan.find((item) => item.id === selectedSeatId) || seatPlan[0];
+  const seat = seatPlan.find((item) => item.id === selectedSeatId);
+  const statePill = byId("selectedSeatStatus");
+  const coffeeButton = byId("seatCoffeeButton");
+  if (!seat) {
+    byId("selectedSeatTitle").textContent = "좌석을 선택하세요";
+    byId("selectedSeatCopy").textContent = "원하는 좌석을 먼저 누른 뒤 입장하면 캐릭터가 그 자리로 이동합니다.";
+    statePill.className = "seat-state-pill blocked";
+    statePill.textContent = "선택 필요";
+    byId("sitSeatButton").textContent = "좌석 선택 필요";
+    byId("sitSeatButton").disabled = true;
+    byId("mobileSitSeatButton").textContent = byId("sitSeatButton").textContent;
+    byId("mobileSitSeatButton").disabled = true;
+    coffeeButton.disabled = true;
+    coffeeButton.classList.add("is-hidden");
+    return;
+  }
   const selectedButton = document.querySelector(`[data-seat-id="${seat.id}"]`);
   const occupiedName = selectedButton?.dataset.builderName || "빈 자리";
   const status = selectedButton?.dataset.builderStatus || "사용 가능";
-  const statePill = byId("selectedSeatStatus");
-  const coffeeButton = byId("seatCoffeeButton");
   const isMine = selectedSeatIsMine();
   const isEmpty = occupiedName === "빈 자리";
   const goalReady = hasValidGoal();
@@ -1390,6 +1445,7 @@ function updateMyBuilder() {
   }
   Object.assign(me, {
     roomId: room?.id || state.activeRoomId,
+    seatId: isSeatCheckedIn ? selectedSeatId : "",
     name: state.profile.nickname || "나",
     category: state.profile.category,
     status: state.profile.status,
@@ -1486,7 +1542,7 @@ document.addEventListener("click", (event) => {
     state.activeRoomId = targetRoomId;
     saveActiveRoom();
     if (remoteReady) {
-      joinRoom(state.activeRoomId)
+      joinRoom(state.activeRoomId, checkedInSeatId())
         .then(refreshRemote)
         .catch((error) => alert(error.message));
     } else {
@@ -1503,7 +1559,17 @@ document.addEventListener("click", (event) => {
     localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
     document.querySelectorAll(".seat-button").forEach((item) => item.classList.remove("selected"));
     seatButton.classList.add("selected");
-    renderSelectedSeat();
+    if (isSeatCheckedIn && (selectedSeatIsEmpty() || selectedSeatIsMine())) {
+      updateMyBuilder();
+      if (remoteReady) {
+        joinRoom(state.activeRoomId, selectedSeatId)
+          .then(refreshRemote)
+          .catch((error) => alert(`좌석 이동 실패: ${error.message}`));
+      } else {
+        saveState();
+      }
+    }
+    renderAll();
     
     // Premium feature: Open RPG Holographic card if occupied
     const builderId = seatButton.dataset.builderId;
@@ -1587,7 +1653,7 @@ document.addEventListener("click", (event) => {
     state.activeRoomId = nextRoomId;
     saveActiveRoom();
     if (remoteReady) {
-      joinRoom(nextRoomId)
+      joinRoom(nextRoomId, checkedInSeatId())
         .then(refreshRemote)
         .catch((error) => alert(error.message));
     } else {
@@ -1632,7 +1698,7 @@ byId("saveProfile").addEventListener("click", async () => {
   try {
     if (remoteReady) {
       await upsertProfile();
-      await joinRoom(state.activeRoomId);
+      await joinRoom(state.activeRoomId, checkedInSeatId());
       await loadRemoteState();
     } else {
       saveState();
@@ -1661,15 +1727,30 @@ byId("sitSeatButton").addEventListener("click", async () => {
     alert("오늘 무료 좌석 이용 시간이 끝났습니다. Q&A와 쇼케이스는 계속 볼 수 있어요.");
     return;
   }
+  if (!selectedSeatId) {
+    alert("먼저 앉을 좌석을 선택해주세요.");
+    return;
+  }
   if (!selectedSeatIsEmpty() && !selectedSeatIsMine()) {
     alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
     return;
   }
   isSeatCheckedIn = true;
   localStorage.setItem("ai-builder-seat-checked-in", todayKey());
-  setUsageSeconds(getUsageSeconds() + 60);
-  await addRoomChat(`${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`);
-  renderAll();
+  try {
+    if (remoteReady) {
+      await joinRoom(state.activeRoomId, selectedSeatId);
+      await loadRemoteState();
+    } else {
+      updateMyBuilder();
+      saveState();
+    }
+    setUsageSeconds(getUsageSeconds() + 60);
+    await addRoomChat(`${state.profile.nickname || "나"}님이 ${selectedSeatId} 좌석에 입장했습니다.`);
+    renderAll();
+  } catch (error) {
+    alert(`좌석 입장 실패: ${error.message}`);
+  }
 });
 
 byId("mobileSitSeatButton").addEventListener("click", () => byId("sitSeatButton").click());
@@ -1750,7 +1831,7 @@ byId("createRoom").addEventListener("click", async () => {
       if (error) throw error;
       state.activeRoomId = data.id;
       saveActiveRoom();
-      await joinRoom(data.id);
+      await joinRoom(data.id, checkedInSeatId());
       await loadRemoteState();
     } else {
       state.rooms.push(room);
@@ -1949,7 +2030,7 @@ document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
     state.activeRoomId = event.target.value;
     saveActiveRoom();
     if (remoteReady) {
-      joinRoom(state.activeRoomId)
+      joinRoom(state.activeRoomId, checkedInSeatId())
         .then(refreshRemote)
         .catch((error) => alert(error.message));
     } else {

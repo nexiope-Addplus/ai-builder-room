@@ -23,8 +23,13 @@ create table if not exists public.rooms (
 create table if not exists public.room_members (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   room_id uuid not null references public.rooms(id) on delete cascade,
+  seat_id text,
   updated_at timestamptz not null default now()
 );
+
+create unique index if not exists room_members_unique_room_seat
+  on public.room_members (room_id, seat_id)
+  where seat_id is not null;
 
 create table if not exists public.help_requests (
   id uuid primary key default gen_random_uuid(),
