@@ -848,7 +848,7 @@ button:disabled {
 
 .floor-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
   gap: 6px;
 }
 
@@ -861,7 +861,8 @@ button:disabled {
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  min-height: 94px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
@@ -900,6 +901,52 @@ button:disabled {
   font-size: 11px;
   font-weight: 800;
   color: var(--muted);
+}
+
+.floor-room-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.floor-room-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 1px solid rgba(30, 37, 40, 0.1);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.floor-room-chip b {
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.floor-room-chip.used {
+  background: rgba(74, 124, 110, 0.12);
+  border-color: rgba(74, 124, 110, 0.22);
+  color: var(--green);
+}
+
+.floor-room-chip.active {
+  background: rgba(49, 95, 114, 0.12);
+  border-color: rgba(49, 95, 114, 0.36);
+  color: var(--blue);
+}
+
+.floor-room-chip.full {
+  background: rgba(201, 129, 94, 0.14);
+  border-color: rgba(201, 129, 94, 0.32);
+  color: var(--coral);
 }
 
 .floor-card.active .floor-name {
@@ -2731,11 +2778,25 @@ button:disabled {
   }
 
   .floor-card {
+    min-height: 82px;
     padding: 6px 8px;
   }
 
   .floor-card strong {
     font-size: 11px;
+  }
+
+  .floor-room-list {
+    gap: 2px;
+  }
+
+  .floor-room-chip {
+    padding: 2px 3px;
+    font-size: 8px;
+  }
+
+  .floor-room-chip b {
+    font-size: 8px;
   }
 
   .room-select-row {
@@ -2940,6 +3001,10 @@ button:disabled {
 
   .floor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .floor-room-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .topbar-actions {
@@ -4544,4 +4609,3 @@ button:disabled {
   0% { filter: hue-rotate(0deg) brightness(0.85); }
   100% { filter: hue-rotate(360deg) brightness(1.2); }
 }
-

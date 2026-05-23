@@ -989,18 +989,18 @@ function renderFloors() {
   const active = activeRoom();
   byId("floorGrid").innerHTML = floorPlan
     .map((floor) => {
-      const room = state.rooms.find((item) => item.category === floor.category);
+      const floorRooms = state.rooms.filter((item) => item.category === floor.category);
+      const room = floorRooms[0];
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
-      
-      // Calculate active builders on this floor
-      let activeCount = 0;
-      if (room) {
-        const floorRooms = state.rooms.filter((r) => r.category === floor.category);
-        floorRooms.forEach((fr) => {
-          activeCount += roomBuilders(fr.id).length;
-        });
-      }
+      const activeCount = floorRooms.reduce((sum, floorRoom) => sum + roomBuilders(floorRoom.id).length, 0);
+      const roomSummary = floorRooms
+        .map((floorRoom) => {
+          const count = roomBuilders(floorRoom.id).length;
+          const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
+          return `<span class="floor-room-chip ${roomClass}">${escapeHtml(floorRoom.name)} <b>${count}/${floorRoom.limit}</b></span>`;
+        })
+        .join("");
       
       let statusDot = `<span class="elevator-indicator empty">⚪ 0명</span>`;
       if (floor.category === "Showcase") {
@@ -1019,6 +1019,7 @@ function renderFloors() {
             ${statusDot}
           </div>
           <span class="floor-name">${escapeHtml(floor.name)}</span>
+          ${roomSummary ? `<span class="floor-room-list">${roomSummary}</span>` : ""}
           <span class="floor-note">${escapeHtml(floor.note)}</span>
         </button>
       `;
