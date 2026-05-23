@@ -1143,7 +1143,7 @@ function renderRooms() {
       const stats = roomStats(room.id);
       return `
         <button class="room-card ${room.id === active.id ? "active" : ""}" data-room-id="${room.id}">
-          <strong>${escapeHtml(room.name)}</strong>
+          <strong>${escapeHtml(roomDisplayName(room))}</strong>
           <span>${escapeHtml(room.category)} · ${stats.entered}명 입장 · ${stats.seated}/${room.limit} 착석</span>
         </button>
       `;
@@ -1153,15 +1153,15 @@ function renderRooms() {
     roomSelect.innerHTML = state.rooms
       .map((room) => {
         const stats = roomStats(room.id);
-        return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(room.name)} · ${stats.seated}/${room.limit} 착석 · ${stats.entered}명 입장</option>`;
+        return `<option value="${escapeHtml(room.id)}" ${room.id === active.id ? "selected" : ""}>${escapeHtml(roomDisplayName(room))} · ${stats.seated}/${room.limit} 착석 · ${stats.entered}명 입장</option>`;
       })
       .join("");
   });
 
   byId("activeRoomType").textContent = active.category;
-  byId("activeRoomName").textContent = active.name;
+  byId("activeRoomName").textContent = roomDisplayName(active);
   const activeRoomBuilders = roomBuilders(active.id);
-  byId("activeRoomEntered").textContent = activeRoomBuilders.length;
+  byId("activeRoomEntered").textContent = liveBuilders(activeRoomBuilders).length;
   byId("activeRoomSeated").textContent = seatedBuilders(activeRoomBuilders).length;
   byId("activeRoomLimit").textContent = active.limit;
 }
@@ -1178,7 +1178,7 @@ function renderFloors() {
         .map((floorRoom, index) => {
           const stats = roomStats(floorRoom.id);
           const roomClass = floorRoom.id === active?.id ? "active" : stats.seated >= floorRoom.limit ? "full" : stats.seated > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(floorGuideRoomNumber(floorRoom.name, floor.floor, index))}</span>`;
+          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(roomDisplayName(floorRoom))} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(roomDisplayName(floorRoom))}</span>`;
         })
         .join("");
       
@@ -1211,6 +1211,15 @@ function floorGuideRoomNumber(roomName, floorLabel, index) {
   const floorNumber = Number.parseInt(floorLabel, 10);
   if (Number.isFinite(floorNumber)) return `${floorNumber * 100 + index + 1}호`;
   return `${index + 1}호`;
+}
+
+function roomDisplayName(room) {
+  if (!room) return "";
+  const floor = floorPlan.find((f) => f.category === room.category);
+  if (!floor) return room.name;
+  const siblings = state.rooms.filter((item) => item.category === room.category);
+  const index = siblings.findIndex((item) => item.id === room.id);
+  return floorGuideRoomNumber(room.name, floor.floor, Math.max(0, index));
 }
 
 function renderBuilders() {
