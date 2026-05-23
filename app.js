@@ -586,6 +586,10 @@ function isMissingSeatColumnError(error) {
   return /seat_id|schema cache|column/i.test(error?.message || "");
 }
 
+function isDuplicateSeatError(error) {
+  return error?.code === "23505" || /room_members_unique_room_seat|duplicate key/i.test(error?.message || "");
+}
+
 async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   if (!remoteReady) return;
   const room = state.rooms.find((item) => item.id === roomId);
@@ -603,8 +607,15 @@ async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   let { error } = await authClient.from("room_members").upsert(payload);
   if (error && isMissingSeatColumnError(error)) {
     seatColumnReady = false;
+    if (seatId) {
+      throw new Error("좌석 중복 방지를 위해 Supabase에 seat_id 컬럼 설정이 필요합니다. supabase-seat-selection.sql을 먼저 실행해주세요.");
+    }
     delete payload.seat_id;
     ({ error } = await authClient.from("room_members").upsert(payload));
+  }
+  if (error && isDuplicateSeatError(error)) {
+    await loadRemoteState();
+    throw new Error("방금 다른 사용자가 이 좌석을 선택했습니다. 비어 있는 다른 좌석을 선택해주세요.");
   }
   if (error) throw error;
 }
@@ -1593,7 +1604,7 @@ async function markQuestionSolved(questionId) {
   }
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const closeModalButton = event.target.closest("[data-close-modal]");
   if (closeModalButton) {
     closeModalButton.closest("dialog")?.close();
@@ -1632,9 +1643,13 @@ document.addEventListener("click", (event) => {
     clearSeatSelection();
     saveActiveRoom();
     if (remoteReady) {
-      joinRoom(state.activeRoomId, checkedInSeatId())
-        .then(refreshRemote)
-        .catch((error) => alert(error.message));
+      try {
+        await joinRoom(state.activeRoomId, checkedInSeatId());
+        await loadRemoteState();
+        renderAll();
+      } catch (error) {
+        alert(error.message);
+      }
     } else {
       updateMyBuilder();
       saveState();
@@ -1651,17 +1666,27 @@ document.addEventListener("click", (event) => {
       alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
       return;
     }
+    const previousSeatId = selectedSeatId;
     selectedSeatId = seatButton.dataset.seatId;
     localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
     document.querySelectorAll(".seat-button").forEach((item) => item.classList.remove("selected"));
     seatButton.classList.add("selected");
     if (isSeatCheckedIn && (selectedSeatIsEmpty() || selectedSeatIsMine())) {
-      updateMyBuilder();
       if (remoteReady) {
-        joinRoom(state.activeRoomId, selectedSeatId)
-          .then(refreshRemote)
-          .catch((error) => alert(`좌석 이동 실패: ${error.message}`));
+        try {
+          await joinRoom(state.activeRoomId, selectedSeatId);
+          await loadRemoteState();
+          renderAll();
+        } catch (error) {
+          selectedSeatId = previousSeatId;
+          localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
+          alert(`좌석 이동 실패: ${error.message}`);
+          await loadRemoteState();
+          renderAll();
+          return;
+        }
       } else {
+        updateMyBuilder();
         saveState();
       }
     }
@@ -1835,6 +1860,8 @@ byId("sitSeatButton").addEventListener("click", async () => {
     alert("이미 사용 중인 좌석입니다. 빈 좌석을 선택해주세요.");
     return;
   }
+  const previousSeatCheckedIn = isSeatCheckedIn;
+  const previousSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
   isSeatCheckedIn = true;
   localStorage.setItem("ai-builder-seat-checked-in", todayKey());
   try {
@@ -1851,7 +1878,18 @@ byId("sitSeatButton").addEventListener("click", async () => {
     setUsageSeconds(getUsageSeconds() + 60);
     renderAll();
   } catch (error) {
+    isSeatCheckedIn = previousSeatCheckedIn;
+    if (previousSeatCheckedIn) {
+      localStorage.setItem("ai-builder-seat-checked-in", todayKey());
+    } else {
+      localStorage.removeItem("ai-builder-seat-checked-in");
+    }
+    selectedSeatId = previousSeatId;
+    if (selectedSeatId) localStorage.setItem("ai-builder-selected-seat", selectedSeatId);
+    else localStorage.removeItem("ai-builder-selected-seat");
     alert(`좌석 입장 실패: ${error.message}`);
+    if (remoteReady) await loadRemoteState();
+    renderAll();
   }
 });
 
