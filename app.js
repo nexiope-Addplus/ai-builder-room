@@ -71,6 +71,7 @@ const authClient = authReady ? window.supabase.createClient(authConfig.supabaseU
 let currentUser = null;
 let remoteReady = false;
 let realtimeChannel = null;
+let seatColumnReady = true;
 let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
 let usageLimitLogoutStarted = false;
@@ -578,6 +579,7 @@ async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   payload.seat_id = seatId || null;
   let { error } = await authClient.from("room_members").upsert(payload);
   if (error && isMissingSeatColumnError(error)) {
+    seatColumnReady = false;
     delete payload.seat_id;
     ({ error } = await authClient.from("room_members").upsert(payload));
   }
@@ -598,10 +600,13 @@ async function loadRemoteState() {
     .select("room_id, seat_id, profiles(id,nickname,goal,category,status,tools)")
     .order("updated_at", { ascending: false });
   if (membersRes.error && isMissingSeatColumnError(membersRes.error)) {
+    seatColumnReady = false;
     membersRes = await authClient
       .from("room_members")
       .select("room_id, profiles(id,nickname,goal,category,status,tools)")
       .order("updated_at", { ascending: false });
+  } else {
+    seatColumnReady = true;
   }
 
   const firstError = [profileRes, roomsRes, membersRes, helpsRes, questionsRes, showcasesRes, chatsRes].find((result) => result.error)?.error;
@@ -1086,6 +1091,7 @@ function renderBuilders() {
   const occupants = new Map();
   const visibleSeats = seatPlan.slice(0, room.limit);
   const validSeats = new Set(visibleSeats.map((seat) => seat.id));
+  const waitingBuilders = [];
   builders.forEach((builder) => {
     const fallbackSeatId =
       builder.id === (currentUser?.id || "me") && isSeatCheckedIn && selectedSeatId
@@ -1094,8 +1100,17 @@ function renderBuilders() {
     const seatId = builder.seatId || fallbackSeatId;
     if (seatId && validSeats.has(seatId) && !occupants.has(seatId)) {
       occupants.set(seatId, builder);
+    } else if (!seatColumnReady) {
+      waitingBuilders.push(builder);
     }
   });
+  if (!seatColumnReady) {
+    visibleSeats.forEach((seat) => {
+      if (occupants.has(seat.id)) return;
+      const nextBuilder = waitingBuilders.shift();
+      if (nextBuilder) occupants.set(seat.id, nextBuilder);
+    });
+  }
 
   byId("builderGrid").innerHTML = `
     <div class="cafe-room game-room ${themeClass}">
