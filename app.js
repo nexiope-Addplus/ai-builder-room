@@ -598,7 +598,7 @@ async function joinRoom(roomId = state.activeRoomId, seatId = null) {
   const room = state.rooms.find((item) => item.id === roomId);
   const occupied = liveBuilders(roomBuilders(roomId)).filter((builder) => builder.id !== currentUser.id).length;
   if (room && occupied >= room.limit) {
-    alert("이 방은 정원이 가득 찼습니다. 다른 방을 선택하거나 새 방을 만들어주세요.");
+    alert("이 방은 정원이 가득 찼습니다. 같은 층의 다른 방을 선택해주세요.");
     return;
   }
   const payload = {
@@ -651,12 +651,20 @@ async function loadRemoteState() {
   if (firstError) throw firstError;
 
   state.profile = fromProfileRow(profileRes.data);
-  state.rooms = roomsRes.data.map((room) => ({
-    id: room.id,
-    name: room.name,
-    category: room.category,
-    limit: room.capacity
-  }));
+  const roomsPerCategory = new Map();
+  state.rooms = roomsRes.data
+    .map((room) => ({
+      id: room.id,
+      name: room.name,
+      category: room.category,
+      limit: room.capacity
+    }))
+    .filter((room) => {
+      const count = roomsPerCategory.get(room.category) || 0;
+      if (count >= 3) return false;
+      roomsPerCategory.set(room.category, count + 1);
+      return true;
+    });
 
   const savedRoomId = localStorage.getItem(`${storageKey}-active-room`);
   state.activeRoomId = state.rooms.some((room) => room.id === savedRoomId) ? savedRoomId : state.rooms[0]?.id;
@@ -2040,53 +2048,6 @@ byId("goalInput").addEventListener("input", () => {
 
 ["categoryInput", "statusInput"].forEach((inputId) => {
   byId(inputId).addEventListener("change", renderProfilePreview);
-});
-
-byId("createRoom").addEventListener("click", async () => {
-  if (!hasSeatTimeLeft()) {
-    alert("오늘 무료 좌석 이용 시간이 끝났습니다. 내일 다시 새 방을 만들 수 있어요.");
-    return;
-  }
-  const category = state.profile.category;
-  const number = state.rooms.filter((room) => room.category === category).length + 1;
-  const floorPrefixMap = {
-    "Prompt / Workflow": "B1",
-    "Design": "1",
-    "Vibe Coding": "2",
-    "Automation": "3"
-  };
-  const prefix = floorPrefixMap[category] || "room";
-  const roomName = prefix !== "room" ? `${prefix}0${number}호` : `${category} 작업실 ${number}`;
-  
-  const room = {
-    id: `${category.toLowerCase().replaceAll(" ", "-").replaceAll("/", "")}-${Date.now()}`,
-    name: roomName,
-    category,
-    limit: category === "Prompt / Workflow" ? 12 : 8
-  };
-  try {
-    if (remoteReady) {
-      const { data, error } = await authClient
-        .from("rooms")
-        .insert({ name: room.name, category: room.category, capacity: room.limit, created_by: currentUser.id })
-        .select()
-        .single();
-      if (error) throw error;
-      state.activeRoomId = data.id;
-      clearSeatSelection();
-      saveActiveRoom();
-      await joinRoom(data.id, checkedInSeatId());
-      await loadRemoteState();
-    } else {
-      state.rooms.push(room);
-      state.activeRoomId = room.id;
-      updateMyBuilder();
-      saveState();
-    }
-    renderAll();
-  } catch (error) {
-    alert(error.message);
-  }
 });
 
 byId("chatForm").addEventListener("submit", async (event) => {
