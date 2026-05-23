@@ -126,10 +126,7 @@ const seedState = {
     { id: "vibe-3", name: "203호", category: "Vibe Coding", limit: 8 },
     { id: "auto-1", name: "301호", category: "Automation", limit: 8 },
     { id: "auto-2", name: "302호", category: "Automation", limit: 8 },
-    { id: "auto-3", name: "303호", category: "Automation", limit: 8 },
-    { id: "show-1", name: "401호", category: "Showcase", limit: 8 },
-    { id: "show-2", name: "402호", category: "Showcase", limit: 8 },
-    { id: "show-3", name: "403호", category: "Showcase", limit: 8 }
+    { id: "auto-3", name: "303호", category: "Automation", limit: 8 }
   ],
   builders: [
     {
@@ -1339,23 +1336,26 @@ function renderFloors() {
       const room = floorRooms[0];
       const isActive = active?.category === floor.category;
       const viewTarget = floor.category === "Showcase" ? "showcase" : "";
-      const slots = [];
-      for (let index = 0; index < 3; index++) {
-        const floorRoom = floorRooms[index];
-        if (floorRoom) {
-          const stats = roomStats(floorRoom.id);
-          const roomClass = floorRoom.id === active?.id ? "active" : stats.seated >= floorRoom.limit ? "full" : stats.seated > 0 ? "used" : "";
-          slots.push(`<span class="floor-room-chip ${roomClass}" title="${escapeHtml(roomDisplayName(floorRoom))} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(roomDisplayName(floorRoom))}</span>`);
-        } else {
-          const placeholderLabel = floorGuideRoomNumber("", floor.floor, index);
-          slots.push(`<span class="floor-room-chip pending" title="DB에 아직 방이 없습니다. supabase-seed-rooms.sql 실행 권장.">${escapeHtml(placeholderLabel)}</span>`);
+      let statusDot;
+      let showcaseBadge = "";
+      if (floor.category === "Showcase") {
+        const itemCount = state.showcases ? state.showcases.length : 0;
+        statusDot = `<span class="floor-room-status showcase">전시 ${itemCount}개</span>`;
+      } else {
+        const slots = [];
+        for (let index = 0; index < 3; index++) {
+          const floorRoom = floorRooms[index];
+          if (floorRoom) {
+            const stats = roomStats(floorRoom.id);
+            const roomClass = floorRoom.id === active?.id ? "active" : stats.seated >= floorRoom.limit ? "full" : stats.seated > 0 ? "used" : "";
+            slots.push(`<span class="floor-room-chip ${roomClass}" title="${escapeHtml(roomDisplayName(floorRoom))} · ${stats.seated}/${floorRoom.limit} 착석 · ${stats.entered}명 입장">${escapeHtml(roomDisplayName(floorRoom))}</span>`);
+          } else {
+            const placeholderLabel = floorGuideRoomNumber("", floor.floor, index);
+            slots.push(`<span class="floor-room-chip pending" title="DB에 아직 방이 없습니다. supabase-seed-rooms.sql 실행 권장.">${escapeHtml(placeholderLabel)}</span>`);
+          }
         }
+        statusDot = `<span class="floor-room-status">${slots.join("")}</span>`;
       }
-      const roomStatus = slots.join("");
-      const statusDot = `<span class="floor-room-status">${roomStatus}</span>`;
-      const showcaseBadge = floor.category === "Showcase"
-        ? `<span class="floor-room-status showcase">전시 ${state.showcases ? state.showcases.length : 0}개</span>`
-        : "";
       
       return `
         <button class="floor-card ${isActive ? "active" : ""}" data-floor-room-id="${escapeHtml(room?.id || "")}" data-floor-view="${escapeHtml(viewTarget)}" ${room || viewTarget ? "" : "disabled"}>
@@ -3024,6 +3024,21 @@ function renderTrends() {
   const floorProgressList = byId("floorProgressList");
   if (floorProgressList) {
     floorProgressList.innerHTML = floorPlan.map((floor) => {
+      if (floor.category === "Showcase") {
+        const showcaseCount = state.showcases ? state.showcases.length : 0;
+        return `
+          <div class="floor-progress-item">
+            <div class="floor-progress-header">
+              <span>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)}</span>
+              <span>🏆 전시 ${showcaseCount}개</span>
+            </div>
+            <div class="floor-progress-bar">
+              <div class="floor-progress-fill" style="width: 100%; background: var(--coral); opacity: 0.5;"></div>
+            </div>
+          </div>
+        `;
+      }
+
       const floorRooms = state.rooms.filter((item) => item.category === floor.category);
       const count = floorRooms.reduce(
         (sum, r) => sum + liveBuilders(roomBuilders(r.id)).length,
@@ -3037,15 +3052,11 @@ function renderTrends() {
       else if (pct >= 40) color = "var(--yellow)";
       else color = "var(--green)";
 
-      const rightLabel = floor.category === "Showcase"
-        ? `전시 ${state.showcases.length}개 · ${count}/${limit}명`
-        : `${count} / ${limit}명 (${pct}%)`;
-
       return `
         <div class="floor-progress-item">
           <div class="floor-progress-header">
             <span>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)} (${floorRooms.length}개 방)</span>
-            <span>${rightLabel}</span>
+            <span>${count} / ${limit}명 (${pct}%)</span>
           </div>
           <div class="floor-progress-bar">
             <div class="floor-progress-fill" style="width: ${pct}%; background: ${color}"></div>

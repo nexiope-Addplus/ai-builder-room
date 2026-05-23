@@ -15,15 +15,15 @@ select * from (values
   ('203호',  'Vibe Coding',       8),
   ('301호',  'Automation',        8),
   ('302호',  'Automation',        8),
-  ('303호',  'Automation',        8),
-  ('401호',  'Showcase',          8),
-  ('402호',  'Showcase',          8),
-  ('403호',  'Showcase',          8)
+  ('303호',  'Automation',        8)
 ) as seed(name, category, capacity)
 where not exists (
   select 1 from rooms r
   where r.category = seed.category and r.name = seed.name
 );
+
+-- Showcase floor uses a count of showcases instead of rooms — remove any seeded rooms.
+delete from rooms where category = 'Showcase';
 
 -- Optional cleanup: keep only the canonical 3 per category by oldest created_at
 delete from rooms
