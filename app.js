@@ -1002,7 +1002,7 @@ function renderFloors() {
         .map((floorRoom) => {
           const count = roomBuilders(floorRoom.id).length;
           const roomClass = floorRoom.id === active?.id ? "active" : count >= floorRoom.limit ? "full" : count > 0 ? "used" : "";
-          return `<span class="floor-room-chip ${roomClass}">${escapeHtml(shortRoomNumber(floorRoom.name))} <b>${count}/${floorRoom.limit}</b></span>`;
+          return `<span class="floor-room-chip ${roomClass}" title="${escapeHtml(floorRoom.name)} · ${count}/${floorRoom.limit}">${escapeHtml(shortRoomNumber(floorRoom.name))}</span>`;
         })
         .join("");
       
