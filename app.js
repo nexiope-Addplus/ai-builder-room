@@ -73,6 +73,7 @@ let remoteReady = false;
 let realtimeChannel = null;
 let selectedSeatId = localStorage.getItem("ai-builder-selected-seat") || "";
 let isSeatCheckedIn = localStorage.getItem("ai-builder-seat-checked-in") === todayKey();
+let usageLimitLogoutStarted = false;
 if (localStorage.getItem("ai-builder-seat-selection-version") !== "2") {
   if (!isSeatCheckedIn) {
     selectedSeatId = "";
@@ -314,15 +315,45 @@ function checkedInSeatId() {
   return isSeatCheckedIn && selectedSeatId ? selectedSeatId : null;
 }
 
+function clearSeatSelection() {
+  selectedSeatId = "";
+  isSeatCheckedIn = false;
+  localStorage.removeItem("ai-builder-selected-seat");
+  localStorage.removeItem("ai-builder-seat-checked-in");
+}
+
+async function logOutForSeatTimeLimit() {
+  if (isAdmin() || usageLimitLogoutStarted) return;
+  usageLimitLogoutStarted = true;
+  if (remoteReady && currentUser) {
+    try {
+      await joinRoom(state.activeRoomId, null);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  clearSeatSelection();
+  alert("오늘 5시간 좌석 이용 시간이 끝나 자동 로그아웃됩니다.");
+  await signOut();
+}
+
 function startUsageTimer() {
   clearInterval(usageTimer);
   usageTimer = setInterval(() => {
-    if (!currentUser || !isSeatCheckedIn || !hasSeatTimeLeft()) {
+    if (!currentUser || !isSeatCheckedIn) {
       renderUsagePass();
       return;
     }
-    setUsageSeconds(getUsageSeconds() + 60);
+    if (!hasSeatTimeLeft()) {
+      logOutForSeatTimeLimit();
+      return;
+    }
+    const nextUsage = getUsageSeconds() + 60;
+    setUsageSeconds(nextUsage);
     renderUsagePass();
+    if (nextUsage >= dailySeatLimitSeconds) {
+      logOutForSeatTimeLimit();
+    }
   }, 60000);
 }
 
@@ -355,6 +386,9 @@ function showApp() {
   byId("appShell").classList.remove("is-hidden");
   byId("resetDemo").classList.toggle("is-hidden", remoteReady);
   startUsageTimer();
+  if (isSeatCheckedIn && !hasSeatTimeLeft()) {
+    logOutForSeatTimeLimit();
+  }
 }
 
 function syncOAuthButtons() {
@@ -541,9 +575,9 @@ async function joinRoom(roomId = state.activeRoomId, seatId = null) {
     room_id: roomId,
     updated_at: new Date().toISOString()
   };
-  if (seatId) payload.seat_id = seatId;
+  payload.seat_id = seatId || null;
   let { error } = await authClient.from("room_members").upsert(payload);
-  if (error && seatId && isMissingSeatColumnError(error)) {
+  if (error && isMissingSeatColumnError(error)) {
     delete payload.seat_id;
     ({ error } = await authClient.from("room_members").upsert(payload));
   }
@@ -638,6 +672,7 @@ function refreshRemote() {
 
 async function bootAppForUser(user) {
   currentUser = user;
+  usageLimitLogoutStarted = false;
   try {
     remoteReady = true;
     await loadRemoteState();
@@ -1051,7 +1086,6 @@ function renderBuilders() {
   const occupants = new Map();
   const visibleSeats = seatPlan.slice(0, room.limit);
   const validSeats = new Set(visibleSeats.map((seat) => seat.id));
-  const waitingBuilders = [];
   builders.forEach((builder) => {
     const fallbackSeatId =
       builder.id === (currentUser?.id || "me") && isSeatCheckedIn && selectedSeatId
@@ -1060,15 +1094,6 @@ function renderBuilders() {
     const seatId = builder.seatId || fallbackSeatId;
     if (seatId && validSeats.has(seatId) && !occupants.has(seatId)) {
       occupants.set(seatId, builder);
-    } else {
-      waitingBuilders.push(builder);
-    }
-  });
-  visibleSeats.forEach((seat) => {
-    if (occupants.has(seat.id)) return;
-    const nextBuilder = waitingBuilders.shift();
-    if (nextBuilder) {
-      occupants.set(seat.id, nextBuilder);
     }
   });
 
@@ -1574,6 +1599,7 @@ document.addEventListener("click", (event) => {
       return;
     }
     state.activeRoomId = targetRoomId;
+    clearSeatSelection();
     saveActiveRoom();
     if (remoteReady) {
       joinRoom(state.activeRoomId, checkedInSeatId())
@@ -1690,6 +1716,7 @@ document.addEventListener("click", (event) => {
   if (roomButton) {
     const nextRoomId = roomButton.dataset.roomId;
     state.activeRoomId = nextRoomId;
+    clearSeatSelection();
     saveActiveRoom();
     if (remoteReady) {
       joinRoom(nextRoomId, checkedInSeatId())
@@ -1873,6 +1900,7 @@ byId("createRoom").addEventListener("click", async () => {
         .single();
       if (error) throw error;
       state.activeRoomId = data.id;
+      clearSeatSelection();
       saveActiveRoom();
       await joinRoom(data.id, checkedInSeatId());
       await loadRemoteState();
@@ -2071,6 +2099,7 @@ byId("emailLoginForm").addEventListener("submit", (event) => {
 document.querySelectorAll("[data-room-select]").forEach((roomSelect) => {
   roomSelect.addEventListener("change", (event) => {
     state.activeRoomId = event.target.value;
+    clearSeatSelection();
     saveActiveRoom();
     if (remoteReady) {
       joinRoom(state.activeRoomId, checkedInSeatId())
