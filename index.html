@@ -238,6 +238,7 @@
           <button class="tab" data-view="qa">💬 Q&A</button>
           <button class="tab" data-view="showcase">🏆 쇼케이스</button>
           <button class="tab" data-view="trends">📊 트렌드</button>
+          <button class="tab" data-view="feedback">💡 건의하기</button>
         </nav>
 
         <section class="view active" id="roomsView">
@@ -457,6 +458,38 @@
                 <!-- Activity timeline list populated by JS -->
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="view" id="feedbackView">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Builder Feedback</p>
+              <h3>건의하기</h3>
+            </div>
+            <span class="map-badge" id="feedbackAdminBadge" hidden>ADMIN VIEW</span>
+          </div>
+
+          <div class="panel">
+            <form id="feedbackForm" class="feedback-form">
+              <label>
+                의견 / 버그 제보 / 기능 제안
+                <textarea id="feedbackBody" rows="4" maxlength="1000" required placeholder="작업실 사용 중 불편한 점, 추가했으면 하는 기능, 발견한 버그 등을 자유롭게 적어주세요."></textarea>
+              </label>
+              <div class="feedback-form-foot">
+                <span class="save-note" id="feedbackSaveNote" aria-live="polite"></span>
+                <button class="primary-button" type="submit">제출</button>
+              </div>
+            </form>
+            <p class="trends-note">⚠️ 제출된 건의는 관리자만 확인할 수 있습니다.</p>
+          </div>
+
+          <div class="panel" id="feedbackAdminPanel" hidden>
+            <div class="section-title">
+              <span>제출된 건의 목록</span>
+              <span class="level-cap" id="feedbackCountLabel">0건</span>
+            </div>
+            <div class="feedback-list" id="feedbackList"></div>
           </div>
         </section>
       </section>

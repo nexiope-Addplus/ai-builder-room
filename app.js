@@ -75,6 +75,8 @@ let liveUserIds = new Set();
 let seatColumnReady = true;
 let currentTaskColumnReady = true;
 let pomodoroTableReady = true;
+let feedbackTableReady = true;
+let feedbackItems = [];
 let activePomo = null;
 let pomoTickInterval = null;
 let lastPomoAnnouncedAt = 0;
@@ -737,6 +739,116 @@ async function loadRemoteState() {
   }
 
   await loadActivePomo();
+  if (isAdmin()) await loadFeedback();
+}
+
+async function loadFeedback() {
+  if (!remoteReady || !feedbackTableReady || !isAdmin()) return;
+  const { data, error } = await authClient
+    .from("feedback")
+    .select("id, user_id, body, status, created_at, resolved_at, profiles(nickname)")
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (/feedback|schema cache|relation/i.test(error.message || "")) {
+      feedbackTableReady = false;
+    } else {
+      console.error(error);
+    }
+    return;
+  }
+  feedbackItems = (data || []).map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    name: row.profiles?.nickname || "익명",
+    body: row.body,
+    status: row.status,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at
+  }));
+  renderFeedback();
+}
+
+function renderFeedback() {
+  const adminPanel = byId("feedbackAdminPanel");
+  const adminBadge = byId("feedbackAdminBadge");
+  const list = byId("feedbackList");
+  const countLabel = byId("feedbackCountLabel");
+  if (!adminPanel || !list) return;
+  const admin = isAdmin();
+  adminPanel.hidden = !admin;
+  if (adminBadge) adminBadge.hidden = !admin;
+  if (!admin) return;
+  if (countLabel) countLabel.textContent = `${feedbackItems.length}건`;
+  if (!feedbackItems.length) {
+    list.innerHTML = `<div class="feedback-empty">아직 제출된 건의가 없습니다.</div>`;
+    return;
+  }
+  const statusLabels = { open: "신규", reviewing: "검토 중", resolved: "해결", wontfix: "보류" };
+  list.innerHTML = feedbackItems.map((item) => `
+    <article class="feedback-item" data-feedback-id="${escapeHtml(item.id)}">
+      <header class="feedback-item-head">
+        <strong>${escapeHtml(item.name)}</strong>
+        <span class="feedback-time">${escapeHtml(formatRelativeTime(item.createdAt))}</span>
+      </header>
+      <p class="feedback-body">${escapeHtml(item.body)}</p>
+      <footer class="feedback-item-foot">
+        <select class="feedback-status" data-feedback-id="${escapeHtml(item.id)}">
+          ${Object.entries(statusLabels).map(([value, label]) =>
+            `<option value="${value}" ${item.status === value ? "selected" : ""}>${label}</option>`
+          ).join("")}
+        </select>
+        <button class="ghost-button feedback-delete" data-feedback-id="${escapeHtml(item.id)}">삭제</button>
+      </footer>
+    </article>
+  `).join("");
+}
+
+async function updateFeedbackStatus(id, status) {
+  if (!remoteReady || !isAdmin()) return;
+  const payload = { status };
+  if (status === "resolved" || status === "wontfix") payload.resolved_at = new Date().toISOString();
+  else payload.resolved_at = null;
+  const { error } = await authClient.from("feedback").update(payload).eq("id", id);
+  if (error) alert(error.message);
+}
+
+async function deleteFeedback(id) {
+  if (!remoteReady || !isAdmin()) return;
+  if (!confirm("이 건의를 삭제하시겠습니까?")) return;
+  const { error } = await authClient.from("feedback").delete().eq("id", id);
+  if (error) alert(error.message);
+}
+
+async function submitFeedback(body) {
+  const text = cleanText(body, 1000);
+  if (!text) {
+    setFeedbackNote("내용을 입력해주세요.");
+    return false;
+  }
+  if (!remoteReady || !currentUser) {
+    setFeedbackNote("로그인 후 제출할 수 있습니다.");
+    return false;
+  }
+  const { error } = await authClient.from("feedback").insert({
+    user_id: currentUser.id,
+    body: text
+  });
+  if (error) {
+    if (/feedback|schema cache|relation/i.test(error.message || "")) {
+      feedbackTableReady = false;
+      setFeedbackNote("Supabase에 feedback 테이블이 없습니다. supabase-feedback.sql을 실행해주세요.");
+    } else {
+      setFeedbackNote(`제출 실패: ${error.message}`);
+    }
+    return false;
+  }
+  setFeedbackNote("제출되었습니다. 관리자가 검토합니다.");
+  return true;
+}
+
+function setFeedbackNote(message) {
+  const el = byId("feedbackSaveNote");
+  if (el) el.textContent = message || "";
 }
 
 function subscribeRemoteChanges() {
@@ -751,6 +863,7 @@ function subscribeRemoteChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "showcases" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "room_pomodoros" }, () => loadActivePomo())
+    .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => loadFeedback())
     .on("presence", { event: "sync" }, handlePresenceSync)
     .on("presence", { event: "join" }, handlePresenceSync)
     .on("presence", { event: "leave" }, handlePresenceSync)
@@ -1958,7 +2071,33 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
     tab.classList.add("active");
     byId(`${tab.dataset.view}View`).classList.add("active");
+    if (tab.dataset.view === "feedback") {
+      renderFeedback();
+      if (isAdmin()) loadFeedback();
+    }
   });
+});
+
+byId("feedbackForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const textarea = byId("feedbackBody");
+  const button = event.target.querySelector("button[type='submit']");
+  if (button) button.disabled = true;
+  const ok = await submitFeedback(textarea.value);
+  if (button) button.disabled = false;
+  if (ok) textarea.value = "";
+});
+
+byId("feedbackList")?.addEventListener("change", (event) => {
+  const select = event.target.closest(".feedback-status");
+  if (!select) return;
+  updateFeedbackStatus(select.dataset.feedbackId, select.value);
+});
+
+byId("feedbackList")?.addEventListener("click", (event) => {
+  const button = event.target.closest(".feedback-delete");
+  if (!button) return;
+  deleteFeedback(button.dataset.feedbackId);
 });
 
 byId("saveProfile").addEventListener("click", async () => {

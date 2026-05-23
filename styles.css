@@ -4664,3 +4664,17 @@ button:disabled {
   0% { filter: hue-rotate(0deg) brightness(0.85); }
   100% { filter: hue-rotate(360deg) brightness(1.2); }
 }
+
+/* Feedback view */
+.feedback-form { display: flex; flex-direction: column; gap: 12px; }
+.feedback-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.feedback-form textarea { padding: 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 10px; font-family: inherit; font-size: 14px; resize: vertical; background: #fff; }
+.feedback-form-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.feedback-list { display: flex; flex-direction: column; gap: 10px; }
+.feedback-item { padding: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px; background: #fff; }
+.feedback-item-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.feedback-time { font-size: 11px; color: var(--muted); font-weight: 600; }
+.feedback-body { margin: 0 0 8px 0; font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.feedback-item-foot { display: flex; gap: 8px; align-items: center; }
+.feedback-status { padding: 4px 8px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; font-size: 12px; font-weight: 700; background: #fff; }
+.feedback-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
