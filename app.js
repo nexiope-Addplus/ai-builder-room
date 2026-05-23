@@ -124,7 +124,10 @@ const seedState = {
     { id: "vibe-3", name: "203호", category: "Vibe Coding", limit: 8 },
     { id: "auto-1", name: "301호", category: "Automation", limit: 8 },
     { id: "auto-2", name: "302호", category: "Automation", limit: 8 },
-    { id: "auto-3", name: "303호", category: "Automation", limit: 8 }
+    { id: "auto-3", name: "303호", category: "Automation", limit: 8 },
+    { id: "show-1", name: "401호", category: "Showcase", limit: 8 },
+    { id: "show-2", name: "402호", category: "Showcase", limit: 8 },
+    { id: "show-3", name: "403호", category: "Showcase", limit: 8 }
   ],
   builders: [
     {
@@ -489,7 +492,8 @@ function mapHelp(row) {
     type: row.help_type,
     tools: row.tools,
     body: row.body,
-    solved: row.solved
+    solved: row.solved,
+    createdAt: row.created_at
   };
 }
 
@@ -501,7 +505,8 @@ function mapQuestion(row) {
     category: row.category,
     tools: row.tools,
     body: row.body,
-    solved: row.solved
+    solved: row.solved,
+    createdAt: row.created_at
   };
 }
 
@@ -513,7 +518,8 @@ function mapShowcase(row) {
     category: row.category,
     tools: row.tools,
     url: row.url,
-    body: row.body
+    body: row.body,
+    createdAt: row.created_at
   };
 }
 
@@ -2875,22 +2881,28 @@ function renderTrends() {
   const floorProgressList = byId("floorProgressList");
   if (floorProgressList) {
     floorProgressList.innerHTML = floorPlan.map((floor) => {
-      const room = state.rooms.find((item) => item.category === floor.category);
-      const roomBuildersList = room ? liveBuilders(roomBuilders(room.id)) : [];
-      const count = roomBuildersList.length;
-      const limit = room ? room.limit : 8;
+      const floorRooms = state.rooms.filter((item) => item.category === floor.category);
+      const count = floorRooms.reduce(
+        (sum, r) => sum + liveBuilders(roomBuilders(r.id)).length,
+        0
+      );
+      const limit = floorRooms.reduce((sum, r) => sum + r.limit, 0) || 8;
       const pct = Math.min(100, Math.round((count / limit) * 100));
-      
+
       let color = "var(--blue)";
       if (pct >= 80) color = "var(--coral)";
       else if (pct >= 40) color = "var(--yellow)";
       else color = "var(--green)";
-      
+
+      const rightLabel = floor.category === "Showcase"
+        ? `전시 ${state.showcases.length}개 · ${count}/${limit}명`
+        : `${count} / ${limit}명 (${pct}%)`;
+
       return `
         <div class="floor-progress-item">
           <div class="floor-progress-header">
-            <span>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)}</span>
-            <span>${count} / ${limit}명 (${pct}%)</span>
+            <span>${escapeHtml(floor.floor)} · ${escapeHtml(floor.name)} (${floorRooms.length}개 방)</span>
+            <span>${rightLabel}</span>
           </div>
           <div class="floor-progress-bar">
             <div class="floor-progress-fill" style="width: ${pct}%; background: ${color}"></div>
@@ -2900,83 +2912,134 @@ function renderTrends() {
     }).join("");
   }
   
-  const activeCount = liveBuilders().length;
-  const modifier = Math.min(25, activeCount * 4);
-  const p0 = 15;
-  const p1 = 40 + modifier * 0.2;
-  const p2 = 80 + modifier * 0.4;
-  const p3 = 55 + modifier * 0.1;
-  const p4 = 90 + modifier * 0.5;
-  const p5 = 25 + modifier * 0.1;
-  
-  const points = [
-    { x: 0, y: 100 - Math.min(95, p0) },
-    { x: 40, y: 100 - Math.min(95, p1) },
-    { x: 80, y: 100 - Math.min(95, p2) },
-    { x: 120, y: 100 - Math.min(95, p3) },
-    { x: 160, y: 100 - Math.min(95, p4) },
-    { x: 200, y: 100 - Math.min(95, p5) }
-  ];
-  
+  const bucketHours = [9, 12, 15, 18, 21, 0];
+  const buckets = bucketHours.map(() => 0);
+  const todayStr = todayKey();
+  const isToday = (ts) => {
+    if (!ts) return false;
+    const d = new Date(ts);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === todayStr;
+  };
+  const tally = (ts) => {
+    if (!isToday(ts)) return;
+    const hour = new Date(ts).getHours();
+    let idx = 0;
+    for (let i = 0; i < bucketHours.length; i++) {
+      const start = bucketHours[i];
+      const end = bucketHours[(i + 1) % bucketHours.length];
+      const inWindow = end > start ? (hour >= start && hour < end) : (hour >= start || hour < end);
+      if (inWindow) { idx = i; break; }
+    }
+    buckets[idx]++;
+  };
+  state.chats.forEach((c) => tally(c.createdAt || c.created_at));
+  state.helps.forEach((h) => tally(h.createdAt || h.created_at));
+  state.showcases.forEach((s) => tally(s.createdAt || s.created_at));
+  state.questions.forEach((q) => tally(q.createdAt || q.created_at));
+
+  const maxBucket = Math.max(1, ...buckets);
+  const points = buckets.map((value, i) => ({
+    x: (i / (buckets.length - 1)) * 200,
+    y: 100 - Math.min(95, (value / maxBucket) * 85 + 5),
+    value
+  }));
+
   const lineD = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
   const fillD = `${lineD} L 200 100 L 0 100 Z`;
-  
+
   byId("chartLinePath").setAttribute("d", lineD);
   byId("chartLineFill").setAttribute("d", fillD);
+
+  const markersGroup = byId("chartLineMarkers");
+  if (markersGroup) {
+    markersGroup.innerHTML = points.map((p) => `
+      <circle cx="${p.x}" cy="${p.y}" r="2" fill="var(--blue)"></circle>
+      <text x="${p.x}" y="${Math.max(8, p.y - 4)}" font-size="6" text-anchor="${p.x < 10 ? "start" : p.x > 190 ? "end" : "middle"}" fill="var(--ink)" font-weight="700">${p.value}</text>
+    `).join("");
+  }
   
   const feedEl = byId("trendsActivityFeed");
   if (feedEl) {
-    const feedItems = [];
-    
+    const items = [];
+
     state.builders.forEach((b) => {
-      if (b.id === "me") return;
-      feedItems.push({
+      if (b.id === "me" || b.id === currentUser?.id) return;
+      if (!b.updatedAt) return;
+      items.push({
+        ts: b.updatedAt,
         icon: "👤",
         text: `<strong>${escapeHtml(b.name)}</strong>님이 <strong>${escapeHtml(b.category)}</strong> 방 좌석에 입장했습니다.`,
-        note: `목표: ${escapeHtml(b.goal)}`,
-        time: "방금 전"
+        note: b.currentTask ? `지금 작업: ${escapeHtml(b.currentTask)}` : `목표: ${escapeHtml(b.goal)}`
       });
     });
-    
-    state.showcases.slice(-3).forEach((s) => {
-      const author = state.builders.find(b => b.id === s.userId || b.id === s.user_id)?.name || "빌더";
-      feedItems.push({
+
+    state.showcases.forEach((s) => {
+      const ts = s.createdAt || s.created_at;
+      const author = state.builders.find((b) => b.id === s.userId || b.id === s.user_id)?.name || "빌더";
+      items.push({
+        ts,
         icon: "🚀",
-        text: `<strong>${escapeHtml(author)}</strong>님이 새로운 쇼케이스 <strong>"${escapeHtml(s.title)}"</strong>을(를) 출하했습니다!`,
-        note: `도구: ${escapeHtml(s.tools)}`,
-        time: "오늘"
+        text: `<strong>${escapeHtml(author)}</strong>님이 새 쇼케이스 <strong>"${escapeHtml(s.title)}"</strong>을(를) 출하했습니다.`,
+        note: `도구: ${escapeHtml(s.tools)}`
       });
     });
-    
-    state.helps.filter(h => h.solved).slice(-3).forEach((h) => {
-      feedItems.push({
+
+    state.helps.filter((h) => h.solved).forEach((h) => {
+      items.push({
+        ts: h.createdAt || h.created_at,
         icon: "🤝",
-        text: `<strong>도움 완료:</strong> <strong>"${escapeHtml(h.title)}"</strong> 문제가 멋지게 해결되었습니다!`,
-        note: `도구: ${escapeHtml(h.tools)}`,
-        time: "오늘"
+        text: `<strong>도움 완료:</strong> <strong>"${escapeHtml(h.title)}"</strong> 문제가 해결되었습니다.`,
+        note: `도구: ${escapeHtml(h.tools)}`
       });
     });
-    
-    if (feedItems.length === 0) {
-      feedItems.push({
+
+    state.chats.slice(-10).forEach((c) => {
+      items.push({
+        ts: c.createdAt || c.created_at,
+        icon: "💬",
+        text: `<strong>${escapeHtml(c.name || "익명")}</strong>: ${escapeHtml(shortText(c.text || "", 60))}`,
+        note: ""
+      });
+    });
+
+    items.sort((a, b) => new Date(b.ts || 0).getTime() - new Date(a.ts || 0).getTime());
+    const visible = items.slice(0, 12);
+
+    if (visible.length === 0) {
+      visible.push({
+        ts: new Date().toISOString(),
         icon: "💡",
         text: "현재 활동 로그가 비어있습니다. 좌석에 입장해 코딩을 시작하세요!",
-        note: "",
-        time: "지금"
+        note: ""
       });
     }
-    
-    feedEl.innerHTML = feedItems.map(item => `
+
+    feedEl.innerHTML = visible.map((item) => `
       <div class="trends-feed-item">
         <div class="feed-icon">${item.icon}</div>
         <div class="feed-content">
           <span>${item.text}</span>
           ${item.note ? `<small style="font-size: 10px; color: var(--muted); font-weight: 700;">${item.note}</small>` : ""}
         </div>
-        <div class="feed-time">${item.time}</div>
+        <div class="feed-time">${escapeHtml(formatRelativeTime(item.ts))}</div>
       </div>
     `).join("");
   }
+}
+
+function formatRelativeTime(ts) {
+  if (!ts) return "방금";
+  const t = new Date(ts).getTime();
+  if (Number.isNaN(t)) return "방금";
+  const diffSec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (diffSec < 60) return `${diffSec}초 전`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return new Date(t).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
 // 4. Holographic Builder Card Modal Population & interactive 3D Tilt
