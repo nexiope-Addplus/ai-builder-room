@@ -77,6 +77,9 @@ let currentTaskColumnReady = true;
 let pomodoroTableReady = true;
 let feedbackTableReady = true;
 let feedbackItems = [];
+let newsTableReady = true;
+let newsItems = [];
+let newsSourceFilter = "all";
 let activePomo = null;
 let pomoTickInterval = null;
 let lastPomoAnnouncedAt = 0;
@@ -737,6 +740,7 @@ async function loadRemoteState() {
 
   await loadActivePomo();
   if (isAdmin()) await loadFeedback();
+  loadNews();
 }
 
 async function loadFeedback() {
@@ -848,6 +852,66 @@ function setFeedbackNote(message) {
   if (el) el.textContent = message || "";
 }
 
+async function loadNews() {
+  if (!remoteReady || !newsTableReady) return;
+  const { data, error } = await authClient
+    .from("news_items")
+    .select("id, source, title, url, summary, published_at, fetched_at")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(80);
+  if (error) {
+    if (/news_items|schema cache|relation/i.test(error.message || "")) {
+      newsTableReady = false;
+    } else {
+      console.error(error);
+    }
+    renderNews();
+    return;
+  }
+  newsItems = data || [];
+  renderNews();
+}
+
+function renderNews() {
+  const list = byId("newsList");
+  if (!list) return;
+  const updatedEl = byId("newsLastUpdated");
+  if (!newsTableReady) {
+    list.innerHTML = `<div class="news-empty">📰 뉴스 테이블이 아직 준비되지 않았습니다. supabase-news.sql을 실행해주세요.</div>`;
+    if (updatedEl) updatedEl.textContent = "";
+    return;
+  }
+  const filtered = newsSourceFilter === "all"
+    ? newsItems
+    : newsItems.filter((item) => item.source === newsSourceFilter);
+  if (!filtered.length) {
+    list.innerHTML = `<div class="news-empty">아직 수집된 뉴스가 없습니다. GitHub Actions의 첫 실행을 기다려주세요.</div>`;
+    if (updatedEl) updatedEl.textContent = "";
+    return;
+  }
+  if (updatedEl) {
+    const latest = newsItems.reduce((max, item) => {
+      const t = new Date(item.fetched_at || 0).getTime();
+      return t > max ? t : max;
+    }, 0);
+    updatedEl.textContent = latest ? `최근 수집: ${formatRelativeTime(new Date(latest).toISOString())}` : "";
+  }
+  list.innerHTML = filtered.map((item) => {
+    const sourceClass = item.source === "GeekNews" ? "src-geek" : "src-ait";
+    const published = item.published_at ? formatRelativeTime(item.published_at) : "시간 미상";
+    return `
+      <a class="news-card" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+        <div class="news-card-head">
+          <span class="news-source ${sourceClass}">${escapeHtml(item.source)}</span>
+          <span class="news-time">${escapeHtml(published)}</span>
+        </div>
+        <h4 class="news-title">${escapeHtml(item.title)}</h4>
+        ${item.summary ? `<p class="news-summary">${escapeHtml(shortText(item.summary, 180))}</p>` : ""}
+      </a>
+    `;
+  }).join("");
+}
+
 function subscribeRemoteChanges() {
   if (!remoteReady || realtimeChannel) return;
   realtimeChannel = authClient
@@ -861,6 +925,7 @@ function subscribeRemoteChanges() {
     .on("postgres_changes", { event: "*", schema: "public", table: "chats" }, refreshRemote)
     .on("postgres_changes", { event: "*", schema: "public", table: "room_pomodoros" }, () => loadActivePomo())
     .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => loadFeedback())
+    .on("postgres_changes", { event: "*", schema: "public", table: "news_items" }, () => loadNews())
     .on("presence", { event: "sync" }, handlePresenceSync)
     .on("presence", { event: "join" }, handlePresenceSync)
     .on("presence", { event: "leave" }, handlePresenceSync)
@@ -2076,6 +2141,9 @@ document.querySelectorAll(".tab").forEach((tab) => {
       renderFeedback();
       if (isAdmin()) loadFeedback();
     }
+    if (tab.dataset.view === "news") {
+      loadNews();
+    }
   });
 });
 
@@ -2099,6 +2167,15 @@ byId("feedbackList")?.addEventListener("click", (event) => {
   const button = event.target.closest(".feedback-delete");
   if (!button) return;
   deleteFeedback(button.dataset.feedbackId);
+});
+
+document.querySelectorAll(".news-filter-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".news-filter-btn").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    newsSourceFilter = button.dataset.newsSource;
+    renderNews();
+  });
 });
 
 byId("saveProfile").addEventListener("click", async () => {

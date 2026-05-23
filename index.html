@@ -238,6 +238,7 @@
           <button class="tab" data-view="qa">💬 Q&A</button>
           <button class="tab" data-view="showcase">🏆 쇼케이스</button>
           <button class="tab" data-view="trends">📊 트렌드</button>
+          <button class="tab" data-view="news">📰 AI 뉴스</button>
           <button class="tab" data-view="feedback">💡 건의하기</button>
         </nav>
 
@@ -459,6 +460,23 @@
               </div>
             </div>
           </div>
+        </section>
+
+        <section class="view" id="newsView">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Curated AI News</p>
+              <h3>AI 뉴스 게시판</h3>
+            </div>
+            <span class="map-badge pulsating">2시간마다 갱신</span>
+          </div>
+          <div class="news-filter">
+            <button class="ghost-button news-filter-btn active" data-news-source="all">전체</button>
+            <button class="ghost-button news-filter-btn" data-news-source="GeekNews">GeekNews</button>
+            <button class="ghost-button news-filter-btn" data-news-source="AI타임즈">AI타임즈</button>
+            <span class="news-updated" id="newsLastUpdated"></span>
+          </div>
+          <div class="news-list" id="newsList"></div>
         </section>
 
         <section class="view" id="feedbackView">
