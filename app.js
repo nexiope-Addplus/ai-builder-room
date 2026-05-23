@@ -1399,6 +1399,7 @@ function renderBuilders() {
   const visibleSeats = seatPlan.slice(0, room.limit);
   const validSeats = new Set(visibleSeats.map((seat) => seat.id));
   builders.forEach((builder) => {
+    if (!isBuilderLive(builder)) return;
     const fallbackSeatId =
       builder.id === (currentUser?.id || "me") && isSeatCheckedIn && selectedSeatId
         ? selectedSeatId
